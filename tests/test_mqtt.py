@@ -1,4 +1,4 @@
-"""Tests for RainPointMqttClient."""
+"""Tests for RainPointMqttClient: connect lifecycle, credential redaction, reconnect supervision."""
 
 import asyncio
 import inspect
@@ -84,7 +84,7 @@ async def _instant_sleep(*_args, **_kwargs) -> None:
 
 
 class TestConstructorSeams:
-    """Constructor accepts an injectable paho factory + time source."""
+    """The constructor accepts an injectable paho factory + time source."""
 
     def test_constructor_exposes_test_seams(self):
         """paho_client_factory and time_source are keyword-only constructor params."""
@@ -116,7 +116,7 @@ class TestConnectDoesNotSubscribe:
 
 
 class TestMessageReceiptLogging:
-    """Log topic + byte-length + running count at DEBUG, never payload contents."""
+    """Logs topic + byte-length + running count at DEBUG, never payload contents."""
 
     @pytest.mark.asyncio
     async def test_on_message_logs_topic_len_and_count_not_payload(self, caplog):
@@ -587,7 +587,7 @@ def test_module_defines_to_redact_and_redact_helper():
 
 
 class TestPahoAutoReconnectDisabled:
-    """Paho's own auto-reconnect must never race the supervisor."""
+    """paho's own auto-reconnect must never race the supervisor."""
 
     @pytest.mark.asyncio
     async def test_connect_passes_reconnect_on_failure_false_to_factory(self):
@@ -617,7 +617,7 @@ class TestPahoAutoReconnectDisabled:
 
 
 class TestBackoffDelay:
-    """Exponential backoff capped at a ceiling, with jitter."""
+    """Exponential backoff is capped at a ceiling, with jitter."""
 
     def _client(self):
         hass = MagicMock()
@@ -644,7 +644,7 @@ class TestBackoffDelay:
 
 
 class TestSupervisorUnboundedRetry:
-    """6+ consecutive connect failures still schedule a further retry."""
+    """Six or more consecutive connect failures still schedule a further retry."""
 
     @pytest.mark.asyncio
     async def test_supervisor_retries_after_six_plus_failures(self):

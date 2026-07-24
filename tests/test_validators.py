@@ -1,4 +1,4 @@
-"""Tests for RainPoint API validation functions."""
+"""Tests for the RainPoint API validation functions."""
 
 import pytest
 

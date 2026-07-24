@@ -77,7 +77,7 @@ class TestDecodeHtv213frfValve:
         assert result["rssi_dbm"] == -84
 
     def test_rssi_non_negative_returns_none(self):
-        """Non-negative RSSI triggers clamping and returns None."""
+        """Non-negative RSSI is rejected as out of range and returns None."""
         payload_positive_rssi = "1,10,1;0,149,0,0,0,0|0,6,0,0,0,0"
         result = decode_htv213frf_valve(payload_positive_rssi)
         assert result["rssi_dbm"] is None
