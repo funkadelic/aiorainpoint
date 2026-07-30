@@ -2,8 +2,8 @@
 
 Measurement only, not production change: nothing here touches
 ``custom_components/``. It exists to widen the evidence behind the finding
-in the project notes
-before the annotation key is changed - a decoded field's structural
+that the catalog annotation was keyed on the wrong field, before the
+annotation key is changed - a decoded field's structural
 ``index`` lines up with the catalog's ``dpCode``, while its per-entry
 ``dp_id`` (the vendor's per-instance ordering handle, only present on ``11#``
 TLV framing) does not - and to prove, against the trusted hand-written valve
