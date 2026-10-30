@@ -1,0 +1,74 @@
+name: Tests
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel a superseded pull request run. Every other run gets its own group,
+# since a pending run in a shared group is replaced by the next one queued.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Each job id is a required status check on main, so these stay separate jobs
+# and never a matrix, which would rename them and block every merge.
+jobs:
+  # Builds the sdist, then the wheel from it, and runs the suite against the
+  # installed wheel from outside the checkout. The only job that catches a
+  # packaging exclusion, since the data loaders degrade silently without files.
+  wheel:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Build the sdist and the wheel
+        run: uv build
+
+      - name: Check the archives
+        run: python scripts/check_dist.py dist
+
+      - name: Install the wheel into a clean venv
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-venv" --python 3.13
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" dist/*.whl -r requirements-test.txt
+
+      - name: Smoke-test the installed wheel
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/wheel-venv/bin/python" -I -c '
+          import hashlib, pathlib, sys
+          import aiorainpoint
+          from aiorainpoint.mqtt import MQTT_TLS_CA_CERT
+          from aiorainpoint.product_catalog import get_catalog_entry, get_catalog_fingerprint
+          assert aiorainpoint.__file__.startswith(sys.prefix), "package not imported from the venv"
+          assert get_catalog_fingerprint() is not None, "catalog did not load"
+          assert get_catalog_entry("HCS702B"), "known model missing from the catalog"
+          md5 = hashlib.md5(pathlib.Path(MQTT_TLS_CA_CERT).read_bytes(), usedforsecurity=False).hexdigest()
+          assert md5 == "c7a6afb466713832af778a7bcb6d1aef", "CA md5 mismatch"
+          assert (pathlib.Path(aiorainpoint.__file__).parent / "py.typed").exists(), "py.typed missing"
+          print("ok")
+          '
+
+      - name: Run the whole suite against the wheel
+        run: |
+          mkdir "$RUNNER_TEMP/wheel-run"
+          cp -r tests scripts pyproject.toml "$RUNNER_TEMP/wheel-run/"
+          cd "$RUNNER_TEMP/wheel-run"
+          "$RUNNER_TEMP/wheel-venv/bin/python" -m pytest --no-cov --tb=short
