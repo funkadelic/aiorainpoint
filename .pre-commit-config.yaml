@@ -1,0 +1,28 @@
+ci:
+  autofix_prs: true
+  autoupdate_commit_msg: "chore: pre-commit autoupdate"
+  autoupdate_schedule: monthly
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Vendored CA certificates are pinned byte-for-byte against the
+        # publisher's MD5; whitespace normalization would break that guard.
+        exclude: ^src/aiorainpoint/certs/
+      - id: end-of-file-fixer
+        exclude: ^src/aiorainpoint/certs/
+      - id: check-yaml
+      - id: check-json
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
