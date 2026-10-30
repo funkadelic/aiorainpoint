@@ -3,34 +3,24 @@
 import ast
 from pathlib import Path
 
-import custom_components.rainpoint.api.product_catalog as product_catalog_module
-import custom_components.rainpoint.api.trust as trust_module
-from custom_components.rainpoint.api import decode_generic, has_bluetooth_control_identity, is_hand_written_model
-from custom_components.rainpoint.api.trust import BLUETOOTH_CONTROL_IDENTITY
-from custom_components.rainpoint.const import (
-    HAND_WRITTEN_MODELS,
-    MODEL_DISPLAY_HUB,
-    VALVE_MODELS,
-)
-from custom_components.rainpoint.coordinator import DECODER_REGISTRY
+import aiorainpoint.product_catalog as product_catalog_module
+import aiorainpoint.trust as trust_module
+from aiorainpoint import decode_generic, has_bluetooth_control_identity, is_hand_written_model
+from aiorainpoint.models import HAND_WRITTEN_MODELS, MODEL_DISPLAY_HUB
+from aiorainpoint.trust import BLUETOOTH_CONTROL_IDENTITY
 
 
 class TestIsHandWrittenModel:
     """is_hand_written_model must recognize every trusted model and no others."""
 
-    def test_true_for_every_decoder_registry_key(self):
-        """Every registered decoder marks its model as hand-written."""
-        for model in DECODER_REGISTRY:
+    def test_true_for_every_hand_written_model(self):
+        """Every member of HAND_WRITTEN_MODELS is recognized as hand-written."""
+        for model in HAND_WRITTEN_MODELS:
             assert is_hand_written_model(model) is True
 
     def test_true_for_display_hub(self):
-        """The display hub is decoded by hand despite not being in the registry."""
+        """The display hub is decoded by hand too."""
         assert is_hand_written_model(MODEL_DISPLAY_HUB) is True
-
-    def test_true_for_every_valve_model(self):
-        """No valve model may ever reach the generic decode path."""
-        for model in VALVE_MODELS:
-            assert is_hand_written_model(model) is True
 
     def test_false_for_unsupported_model(self):
         """An unsupported model is exactly what the generic path is for."""
@@ -41,21 +31,13 @@ class TestIsHandWrittenModel:
         assert is_hand_written_model(None) is False
 
 
-class TestHandWrittenModelsDriftGuard:
-    """HAND_WRITTEN_MODELS must stay in lockstep with DECODER_REGISTRY."""
-
-    def test_matches_decoder_registry_plus_display_hub(self):
-        """Adding a decoder without updating the constant would open the boundary."""
-        assert set(DECODER_REGISTRY) | {MODEL_DISPLAY_HUB} == HAND_WRITTEN_MODELS
-
-
 class TestDecodeGenericSkipsHandWrittenModels:
     """decode_generic must never attach a catalog annotation for a trusted model."""
 
     def test_hand_written_model_never_annotated_even_with_catalog_entry(self, monkeypatch):
         """Defense in depth: a hand-written model gets no annotation, even if it
         happened to have a matching catalog entry."""
-        import custom_components.rainpoint.api.generic_decoder as generic_decoder_module
+        import aiorainpoint.generic_decoder as generic_decoder_module
 
         fake_catalog = [{"dpCode": 31, "identity": "STA_BAT", "dpPort": 1, "dpDataType": "uint8", "portNumber": 1}]
         # The stub must mirror get_catalog_entry's real (model, model_code)
@@ -64,7 +46,7 @@ class TestDecodeGenericSkipsHandWrittenModels:
         # assertion below would hold even with the trust guard removed.
         monkeypatch.setattr(generic_decoder_module, "get_catalog_entry", lambda model, model_code=None: fake_catalog)
 
-        hand_written_model = next(iter(DECODER_REGISTRY))
+        hand_written_model = next(iter(HAND_WRITTEN_MODELS))
         result = decode_generic("10#DC", model=hand_written_model)
 
         for field in result["fields"]:
@@ -146,7 +128,8 @@ class TestHasBluetoothControlIdentity:
         a file this integration failed to read."""
         monkeypatch.setattr(product_catalog_module, "_CATALOG", {})
 
-        for model in VALVE_MODELS:
+        # HAND_WRITTEN_MODELS holds every valve model.
+        for model in HAND_WRITTEN_MODELS:
             assert has_bluetooth_control_identity(model, None) is False
 
     def test_the_catalog_lookup_is_called_with_the_model_and_model_code_verbatim(self, monkeypatch):
@@ -227,10 +210,10 @@ class TestBluetoothControlIdentityRoutingInvariant:
 
 
 class TestApiImportBoundary:
-    """The api package must import nothing from outside itself."""
+    """The package must import nothing from outside itself."""
 
     def test_no_module_imports_outside_the_package(self):
-        """No import reaches above the package or into the integration or Home Assistant."""
+        """No import reaches above the package or into Home Assistant."""
         files = list(Path(trust_module.__file__).parent.glob("*.py"))
         assert len(files) >= 9
         offenders = []
@@ -244,9 +227,5 @@ class TestApiImportBoundary:
                     names = [alias.name for alias in node.names]
                 else:
                     continue
-                offenders += [
-                    f"{path.name}:{node.lineno} {name}"
-                    for name in names
-                    if name.split(".")[0] in {"custom_components", "homeassistant"}
-                ]
+                offenders += [f"{path.name}:{node.lineno} {name}" for name in names if name.split(".")[0] == "homeassistant"]
         assert offenders == []

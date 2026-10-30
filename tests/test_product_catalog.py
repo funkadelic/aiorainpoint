@@ -3,9 +3,9 @@
 import json
 from typing import ClassVar
 
-import custom_components.rainpoint.api.product_catalog as product_catalog_module
-from custom_components.rainpoint.api import get_catalog_entry
-from custom_components.rainpoint.api.product_catalog import (
+import aiorainpoint.product_catalog as product_catalog_module
+from aiorainpoint import get_catalog_entry
+from aiorainpoint.product_catalog import (
     UNCODED_VARIANT,
     _fingerprint_catalog,
     _load_catalog,

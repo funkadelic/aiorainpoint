@@ -4,10 +4,10 @@ import hashlib
 import logging
 from pathlib import Path
 
-import custom_components.rainpoint.api.decoders as decoders_module
-import custom_components.rainpoint.api.generic_decoder as generic_decoder_module
-import custom_components.rainpoint.api.utils as api_utils_module
-from custom_components.rainpoint.api import decode_generic, is_ascii_declined
+import aiorainpoint.decoders as decoders_module
+import aiorainpoint.generic_decoder as generic_decoder_module
+import aiorainpoint.utils as api_utils_module
+from aiorainpoint import decode_generic, is_ascii_declined
 from tests.payload_samples import (
     CATALOG_ANCHOR_MODEL,
     HWS019WRF_V2_PAYLOAD,
@@ -19,7 +19,7 @@ from tests.payload_samples import (
     SAMPLE_UNSUPPORTED_MULTI_SENSOR_PAYLOAD,
 )
 
-# custom_components/rainpoint/api/decoders.py is the trusted reference the
+# src/aiorainpoint/decoders.py is the trusted reference the
 # generic ASCII-framing decoder reads and must never edit. Pinned by
 # whole-file digest rather than a per-function comparison. Legitimate
 # hand-written decoder changes (most recently accepting the 01# prefix)
@@ -123,7 +123,7 @@ class TestDecodeGenericRobustness:
         result = decode_generic(["marker-should-not-be-logged", ";"])  # type: ignore[arg-type]
 
         assert "error" in result
-        rainpoint_records = [r for r in caplog.records if r.name.startswith("custom_components.rainpoint")]
+        rainpoint_records = [r for r in caplog.records if r.name.startswith("aiorainpoint")]
         assert len(rainpoint_records) == 1
         message = rainpoint_records[0].getMessage()
         assert "marker-should-not-be-logged" not in message
@@ -712,7 +712,7 @@ class TestDecodeGenericAscii:
         assert result["field_names"] == []
         assert result["ascii_framed"] is True
         assert "ASCII" in result["error"]
-        rainpoint_records = [r for r in caplog.records if r.name.startswith("custom_components.rainpoint")]
+        rainpoint_records = [r for r in caplog.records if r.name.startswith("aiorainpoint")]
         assert rainpoint_records == []
 
     def test_truncated_header_declines_without_raising(self):

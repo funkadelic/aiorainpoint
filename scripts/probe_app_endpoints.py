@@ -34,9 +34,7 @@ import getpass
 import json
 import os
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
 _REQUEST_TIMEOUT_SECONDS = 60.0
 
 
@@ -81,7 +79,7 @@ async def _dump(client, session, label: str, path: str, params: dict) -> None:
 async def _run(args: argparse.Namespace, password: str) -> int:
     import aiohttp
 
-    from custom_components.rainpoint.api.client import RainPointClient
+    from aiorainpoint.client import RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -101,7 +99,6 @@ async def _run(args: argparse.Namespace, password: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    sys.path.insert(0, str(_REPO_ROOT))
     args = _parse_args(argv)
     if not args.email:
         print("Set RAINPOINT_EMAIL or pass --email.", file=sys.stderr)

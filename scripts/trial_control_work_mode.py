@@ -36,9 +36,6 @@ import asyncio
 import getpass
 import os
 import sys
-from pathlib import Path
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # A trial never needs a long run; anything longer than this is a config
 # mistake, not an experiment.
@@ -105,7 +102,7 @@ def _decoder_for(model: str | None):
     Imported lazily so listing mode works even if a decoder module ever grows
     an import this standalone script cannot satisfy.
     """
-    from custom_components.rainpoint import api
+    import aiorainpoint as api
 
     decoders = {
         "HTV210B": api.decode_htv210b,
@@ -182,7 +179,7 @@ def _print_status(label: str, entry: dict | None, decoder) -> None:
 async def _run_trial(args: argparse.Namespace, password: str) -> int:
     import aiohttp
 
-    from custom_components.rainpoint.api.client import RainPointApiError, RainPointClient
+    from aiorainpoint.client import RainPointApiError, RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -295,7 +292,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.email or not password:
         print("RAINPOINT_EMAIL (env var or --email) and RAINPOINT_PASSWORD (env var) are required.", file=sys.stderr)
         return 2
-    sys.path.insert(0, str(_REPO_ROOT))
     return asyncio.run(_run_trial(args, password))
 
 

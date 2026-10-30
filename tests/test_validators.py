@@ -2,7 +2,7 @@
 
 import pytest
 
-from custom_components.rainpoint.api import (
+from aiorainpoint import (
     _extract_battery_flag,
     _extract_rssi,
     _validate_payload,

@@ -4,13 +4,14 @@ import logging
 
 import pytest
 
-from custom_components.rainpoint.api import (
+from aiorainpoint import (
     _base_decoder_dict,
     _extract_report_time,
     _is_dp_id_framed,
     _le16,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
+    encode_dp_duration_param,
     f10_to_c,
     parse_hub_broadcast_flag,
     parse_sub_power_mode,
@@ -18,7 +19,7 @@ from custom_components.rainpoint.api import (
     splice_sub_power_mode,
     valid_rssi_dbm,
 )
-from custom_components.rainpoint.api.utils import (
+from aiorainpoint.utils import (
     _find_field_int,
     _find_field_value,
     _parse_ascii_rssi,
@@ -1009,7 +1010,7 @@ class TestRecordSummaryIsLazy:
             calls.append(record)
             return "summary"
 
-        monkeypatch.setattr("custom_components.rainpoint.api.utils.summarize_record", _spy)
+        monkeypatch.setattr("aiorainpoint.utils.summarize_record", _spy)
         wrapper = _RecordSummary({"deviceName": "MAC-A0B0C0D00003"})
         assert calls == []
         assert str(wrapper) == "summary"
@@ -1028,7 +1029,7 @@ class TestRecordSummaryIsLazy:
 
     def test_a_debug_call_with_debug_off_never_builds_the_summary(self, caplog):
         """The end-to-end property, asserted through a real logger."""
-        logger = logging.getLogger("custom_components.rainpoint.api.utils")
+        logger = logging.getLogger("aiorainpoint.utils")
         calls = []
 
         class _Counting(_RecordSummary):
@@ -1036,6 +1037,17 @@ class TestRecordSummaryIsLazy:
                 calls.append(1)
                 return "summary"
 
-        with caplog.at_level(logging.WARNING, logger="custom_components.rainpoint.api.utils"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint.utils"):
             logger.debug("record %s", _Counting({"a": 1}))
         assert calls == []
+
+
+class TestEncodeDpDurationParam:
+    """Run duration as the 4-byte little-endian hex controlWorkModeDP reads."""
+
+    @pytest.mark.parametrize(
+        ("seconds", "expected"),
+        [(60, "3C000000"), (0, "00000000"), (-5, "00000000"), (0x1_0000_0000, "FFFFFFFF")],
+    )
+    def test_encodes_and_clamps(self, seconds, expected):
+        assert encode_dp_duration_param(seconds) == expected

@@ -2,7 +2,7 @@
 """Regenerate the committed, trimmed RainPoint product catalog.
 
 The integration ships a committed snapshot of RainPoint's product-model
-catalog at custom_components/rainpoint/api/data/product_catalog.json and
+catalog at src/aiorainpoint/data/product_catalog.json and
 never fetches it from RainPoint at runtime. This script is the maintainer
 tool that keeps that snapshot up to date: it authenticates with a
 maintainer's own RainPoint credentials, pulls the live catalog, trims it
@@ -42,7 +42,7 @@ import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_CATALOG_PATH = _REPO_ROOT / "custom_components" / "rainpoint" / "api" / "data" / "product_catalog.json"
+_CATALOG_PATH = _REPO_ROOT / "src" / "aiorainpoint" / "data" / "product_catalog.json"
 
 # Only these model-name prefixes are kept -- devices report RainPoint model
 # strings, so any other RainPoint catalog entry is never looked up and would
@@ -110,9 +110,9 @@ _LOGIN_ATTEMPTS = 3
 _LOGIN_RETRY_MARGIN_SECONDS = 5.0
 
 # Bucket key for RainPoint entries carrying no modelCode. Duplicated from
-# custom_components/rainpoint/api/product_catalog.py rather than imported,
-# because this script is standalone and only puts the component on sys.path
-# once it is actually fetching. A test asserts the two stay in step.
+# src/aiorainpoint/product_catalog.py rather than imported, so
+# trim_catalog stays importable without the package. A test asserts the two
+# stay in step.
 UNCODED_VARIANT = "*"
 
 
@@ -340,13 +340,12 @@ async def _fetch_raw_catalog(email: str, password: str, area_code: str, timeout_
     makes --timeout the deadline for this attempt, which is what its help text
     describes.
 
-    aiohttp and the component client are imported here rather than at module
-    scope: this is the only code path that needs them, and main() does not put
-    the component on sys.path until it is about to fetch.
+    aiohttp and the client are imported here rather than at module scope:
+    this is the only code path that needs them.
     """
     import aiohttp
 
-    from custom_components.rainpoint.api.client import RainPointClient
+    from aiorainpoint.client import RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=timeout_seconds)
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -365,10 +364,9 @@ async def _fetch_raw_catalog(email: str, password: str, area_code: str, timeout_
 async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, timeout_seconds: float) -> dict:
     """Log in, pull the RainPoint product catalog, and return it trimmed.
 
-    aiohttp and the component client are imported here rather than at module
-    scope: this is the only code path that needs them, and main() does not put
-    the component on sys.path until it is about to fetch. That keeps
-    trim_catalog importable on its own for tests.
+    aiohttp and the client are imported here rather than at module scope:
+    this is the only code path that needs them, which keeps trim_catalog
+    importable on its own for tests.
 
     The fetch carries two deadlines because they bound different things. The
     session timeout caps a single request, since the component's client sets
@@ -391,7 +389,7 @@ async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, time
     them, login, fetch, and diff are indistinguishable from a hang. Both go to
     stderr so --check output stays pipeable.
     """
-    from custom_components.rainpoint.api.client import RainPointThrottledError
+    from aiorainpoint.client import RainPointThrottledError
 
     raw: list | None = None
     for attempt in range(1, _LOGIN_ATTEMPTS + 1):
@@ -448,7 +446,6 @@ def main(argv: list[str] | None = None) -> int:
         print("RAINPOINT_EMAIL (env var or --email) and RAINPOINT_PASSWORD (env var) are required.", file=sys.stderr)
         return 2
 
-    sys.path.insert(0, str(_REPO_ROOT))
     try:
         trimmed = asyncio.run(_fetch_trimmed_catalog(args.email, password, args.area_code, args.timeout))
     except CatalogFetchThrottled as err:

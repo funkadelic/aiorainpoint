@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import paho.mqtt.client as paho
 import pytest
 
-import custom_components.rainpoint.api.mqtt as mqtt_module
-from custom_components.rainpoint.api.mqtt import PushCoordinator, RainPointMqttClient, RainPointMqttError, _topic_kind
+import aiorainpoint.mqtt as mqtt_module
+from aiorainpoint.mqtt import PushCoordinator, RainPointMqttClient, RainPointMqttError, _topic_kind
 from tests.payload_samples import (
     SAMPLE_HUB_DISCONNECT_FRAME,
     SAMPLE_HUB_FRAME_MID,
@@ -258,7 +258,7 @@ class TestMessageReceiptLogging:
 
         with (
             patch.object(mqtt_module, "_payload_preview", wraps=mqtt_module._payload_preview) as preview,
-            caplog.at_level(logging.INFO, logger="custom_components.rainpoint.api.mqtt"),
+            caplog.at_level(logging.INFO, logger="aiorainpoint.mqtt"),
         ):
             client._on_message(fake_paho, None, msg)
             await asyncio.sleep(0)
@@ -1079,6 +1079,17 @@ class TestSubDeviceEnvelopeMidAttribution:
         assert client.last_message_at_for(300013) == 100.0
         assert client.last_message_at_for(300011) is None
 
+    def test_frame_naming_an_unknown_hub_does_not_stamp_its_clock(self):
+        """A mid the coordinator does not know gets no clock entry."""
+        coordinator = MagicMock(spec=PushCoordinator)
+        coordinator.knows_hub_mid.return_value = False
+        client = _make_push_client(MagicMock(), MagicMock(), coordinator, hub_mid=300011)
+
+        client._dispatch_push("topic", _captured_push_payload({"D01": "11#ab"}, mid=300013))
+
+        coordinator.knows_hub_mid.assert_called_with(300013)
+        assert client.last_message_at_for(300013) is None
+
     @pytest.mark.parametrize(
         "param",
         [
@@ -1095,7 +1106,7 @@ class TestSubDeviceEnvelopeMidAttribution:
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
         payload = json.dumps({"method": "thing.service.property.set", "params": {"param": param}, "version": "1.0.0"}).encode()
 
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
             client._dispatch_push("topic", payload)
 
         coordinator.apply_push_update.assert_not_called()
@@ -1184,7 +1195,7 @@ class TestUnrecognisedShapeLogging:
         shape_a_repeat = b'{"method":"thing.service.property.set","params":{"BroadcastTime":2}}'
         shape_b = b"not-a-json-payload-at-all"
 
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
             client._dispatch_push("topic", shape_a)
             client._dispatch_push("topic", shape_a_repeat)
             client._dispatch_push("topic", shape_b)
@@ -1205,7 +1216,7 @@ class TestUnrecognisedShapeLogging:
         payload = b"#P26073118173000001000000230001|9|9|9#"
 
         with (
-            caplog.at_level(logging.INFO, logger="custom_components.rainpoint.api.mqtt"),
+            caplog.at_level(logging.INFO, logger="aiorainpoint.mqtt"),
             patch.object(mqtt_module, "_payload_preview") as preview,
         ):
             client._dispatch_push("topic", payload)
@@ -1220,7 +1231,7 @@ class TestUnrecognisedShapeLogging:
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
         limit = mqtt_module.MQTT_UNRECOGNISED_SHAPE_LOG_LIMIT
 
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
             for i in range(limit + 2):
                 # A distinct pipe-count per iteration guarantees a distinct shape key.
                 payload = "|".join(["x"] * (i + 1)).encode()
@@ -2596,7 +2607,7 @@ class TestUnreadableIdentityIsVisible:
         coordinator = MagicMock(spec=PushCoordinator)
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
 
-        with caplog.at_level(logging.WARNING, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
             client._dispatch_push("topic", self._overwide_hub_frame())
             client._dispatch_push("topic", self._overwide_hub_frame())
 
@@ -2616,7 +2627,7 @@ class TestUnreadableIdentityIsVisible:
         payload = json.dumps({"method": "thing.service.property.set", "params": {"param": param}, "version": "1.0.0"}).encode()
         client = _make_push_client(MagicMock(), MagicMock(), MagicMock(spec=PushCoordinator))
 
-        with caplog.at_level(logging.WARNING, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
             client._dispatch_push("topic", payload)
 
         assert any("unreadable" in r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
@@ -2627,7 +2638,7 @@ class TestUnreadableIdentityIsVisible:
         client = _make_push_client(MagicMock(), MagicMock(), MagicMock(spec=PushCoordinator))
         client._unrecognised_shapes = {f"filler-{i}" for i in range(mqtt_module.MQTT_UNRECOGNISED_SHAPE_LOG_LIMIT)}
 
-        with caplog.at_level(logging.WARNING, logger="custom_components.rainpoint.api.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
             client._dispatch_push("topic", self._overwide_hub_frame())
 
         assert not [r for r in caplog.records if r.levelno == logging.WARNING]

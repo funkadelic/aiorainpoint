@@ -46,9 +46,6 @@ import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _REQUEST_TIMEOUT_SECONDS = 60.0
 _DEFAULT_WATCH_SECONDS = 900
@@ -155,7 +152,7 @@ def _split_sections(payload: bytes) -> tuple[str | None, list[str]]:
     """
     import json
 
-    from custom_components.rainpoint.api.mqtt import (
+    from aiorainpoint.mqtt import (
         MQTT_PUSH_METHOD,
         MQTT_PUSH_PARAMS_KEY,
         MQTT_PUSH_SECTION_DELIMITER,
@@ -185,7 +182,6 @@ def _self_check() -> int:
     Asserts rather than reports: this runs without credentials or hardware, so
     it is the only check that survives having neither.
     """
-    sys.path.insert(0, str(_REPO_ROOT))
     text, sections = _split_sections(_SAMPLE_HUB_FRAME.encode())
     assert text == _SAMPLE_HUB_FRAME, "raw text should round-trip unchanged"
     assert len(sections) == 4, f"expected 4 sections, got {len(sections)}"
@@ -262,11 +258,10 @@ class _HassShim:
 def _build_dumping_client_class():
     """Return a client subclass that prints frames instead of routing them.
 
-    Built inside a function so the integration import happens after main has
-    put the repository root on sys.path, which is what lets this run from a
-    checkout with nothing installed.
+    Built inside a function so the package is imported only when a dump
+    actually runs.
     """
-    from custom_components.rainpoint.api.mqtt import RainPointMqttClient
+    from aiorainpoint.mqtt import RainPointMqttClient
 
     class _DumpingMqttClient(RainPointMqttClient):
         """Print every envelope instead of routing it to a coordinator.
@@ -301,7 +296,7 @@ async def _run_dump(args: argparse.Namespace, password: str) -> int:
     """
     import aiohttp
 
-    from custom_components.rainpoint.api.client import RainPointClient
+    from aiorainpoint.client import RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -389,7 +384,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.email or not password:
         print("RAINPOINT_EMAIL (env var or --email) and RAINPOINT_PASSWORD (env var) are required.", file=sys.stderr)
         return 2
-    sys.path.insert(0, str(_REPO_ROOT))
     return asyncio.run(_run_dump(args, password))
 
 

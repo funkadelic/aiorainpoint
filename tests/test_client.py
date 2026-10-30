@@ -11,18 +11,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import custom_components.rainpoint.api.client as _client_module
-import custom_components.rainpoint.api.product_catalog as product_catalog
-from custom_components.rainpoint.api import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
-from custom_components.rainpoint.api.client import _SESSION_REJECTED_CODES, _USER_AGENT
-from custom_components.rainpoint.api.mqtt import RainPointMqttError
-from custom_components.rainpoint.api.utils import _redact_secret
+import aiorainpoint.client as _client_module
+import aiorainpoint.product_catalog as product_catalog
+from aiorainpoint import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
+from aiorainpoint.client import _SESSION_REJECTED_CODES, _USER_AGENT
+from aiorainpoint.mqtt import RainPointMqttError
+from aiorainpoint.utils import _redact_secret
 from tests.helpers import make_mock_session_client, mock_json_response
 
 # scripts/ is not a package (it's a standalone maintainer-tool directory, not
-# shipped inside custom_components/), so it is loaded here via importlib
-# rather than a normal import.
-_REFRESH_SCRIPT_PATH = Path(__file__).resolve().parent.parent.parent / "scripts" / "refresh_product_catalog.py"
+# shipped in the wheel), so it is loaded here via importlib rather than a
+# normal import.
+_REFRESH_SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "refresh_product_catalog.py"
 _refresh_spec = importlib.util.spec_from_file_location("refresh_product_catalog", _REFRESH_SCRIPT_PATH)
 refresh_product_catalog = importlib.util.module_from_spec(_refresh_spec)
 _refresh_spec.loader.exec_module(refresh_product_catalog)
@@ -410,7 +410,7 @@ class TestControlWorkModeDp:
         json_body = {"code": 0, "data": {"state": "1,D821AF3C000000B7D1230B1A"}}
         client._session.post = MagicMock(return_value=self._mock_response(json_body))
 
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
             await client.control_work_mode_dp(
                 mid=1,
                 addr=3,
@@ -1262,21 +1262,15 @@ class TestTokenManagement:
 
     def test_restore_tokens_bad_timestamp_falls_back_to_none(self):
         """A non-numeric token_expires_at is caught and _token_expires_at stays None."""
-        from custom_components.rainpoint.const import (
-            CONF_REFRESH_TOKEN,
-            CONF_TOKEN,
-            CONF_TOKEN_EXPIRES_AT,
-        )
-
         client = _make_client()
         client._token = None
         client._token_expires_at = None
 
         client.restore_tokens(
             {
-                CONF_TOKEN: "t",
-                CONF_REFRESH_TOKEN: "r",
-                CONF_TOKEN_EXPIRES_AT: "not-a-number",
+                "token": "t",
+                "refresh_token": "r",
+                "token_expires_at": "not-a-number",
             }
         )
 
@@ -1285,14 +1279,8 @@ class TestTokenManagement:
         assert client._token_expires_at is None
 
     def test_export_tokens_keys_match_config_entry_keys(self):
-        """The client owns its token keys, so they must not drift from the stored entry's."""
-        from custom_components.rainpoint.const import (
-            CONF_REFRESH_TOKEN,
-            CONF_TOKEN,
-            CONF_TOKEN_EXPIRES_AT,
-        )
-
-        assert set(_make_client().export_tokens()) == {CONF_TOKEN, CONF_REFRESH_TOKEN, CONF_TOKEN_EXPIRES_AT}
+        """These keys are the contract a caller stores and hands back to restore_tokens."""
+        assert set(_make_client().export_tokens()) == {"token", "refresh_token", "token_expires_at"}
 
     def test_export_tokens(self):
         """export_tokens returns dict with token, refresh_token, and int timestamp."""
@@ -1764,7 +1752,7 @@ class TestEverySessionRejectionIsRouted:
     exercise the new endpoint's error path.
     """
 
-    _CLIENT_PATH = Path(__file__).resolve().parent.parent.parent / "custom_components" / "rainpoint" / "api" / "client.py"
+    _CLIENT_PATH = Path(_client_module.__file__)
 
     # Stand-in sources for the negative cases below. They exist so the scan's
     # ability to FAIL is proven by the suite rather than by a one-time manual
@@ -2486,23 +2474,6 @@ class TestRefreshScriptMain:
     Every test stubs the network fetch; nothing here talks to RainPoint.
     """
 
-    @pytest.fixture(autouse=True)
-    def _restore_current_event_loop(self):
-        """Put the thread's current event loop back after main() runs.
-
-        main() drives its fetch through asyncio.run, which closes the loop it
-        created and leaves the thread with no current loop. The Home Assistant
-        test plugin's autouse fixtures call asyncio.get_event_loop() during
-        setup, so without this the very next test in the session errors out.
-        """
-        try:
-            loop = asyncio.get_event_loop_policy().get_event_loop()
-        except RuntimeError:
-            loop = None
-        yield
-        if loop is not None:
-            asyncio.set_event_loop(loop)
-
     @staticmethod
     def _stub_fetch(monkeypatch, trimmed, captured: dict | None = None):
         """Replace the script's network fetch with one returning trimmed.
@@ -2611,7 +2582,7 @@ class TestRefreshScriptMain:
         well past the stated limit. The stub never returns, so only an outer
         deadline can end this.
         """
-        import custom_components.rainpoint.api.client as client_module
+        import aiorainpoint.client as client_module
 
         class _StalledClient:
             def __init__(self, area_code, email, password, session):
@@ -2636,7 +2607,7 @@ class TestRefreshScriptMain:
         own cooldown clock on a throttle, so a retry that reused the instance
         would fast-fail against that clock instead of reaching the server.
         """
-        import custom_components.rainpoint.api.client as client_module
+        import aiorainpoint.client as client_module
 
         state = {"attempts": 0}
 
@@ -2716,7 +2687,7 @@ class TestRefreshScriptMain:
         On stderr with the other progress lines, so --check stdout stays the
         drift summary the CI step captures on its own.
         """
-        import custom_components.rainpoint.api.client as client_module
+        import aiorainpoint.client as client_module
 
         class _MixedClient:
             def __init__(self, area_code, email, password, session):
@@ -2885,6 +2856,46 @@ class TestGetFirmwareInfo:
             await client.get_hub_firmware_info(mid=1)
 
         assert client._token_expires_at is None
+
+    @pytest.mark.asyncio
+    async def test_sub_device_check_addresses_the_sub_endpoint_by_sid(self):
+        """The sub-device entry point hits its own URL and sends the sid."""
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": {"info": None}}))
+
+        assert await client.get_sub_firmware_info(sid=7) == {"info": None}
+
+        args, kwargs = client._session.get.call_args
+        assert args[0].endswith("/app/device/sub/firmware/upgrade/info")
+        assert kwargs["params"] == {"sid": 7}
+
+    @pytest.mark.asyncio
+    async def test_non_200_status_raises(self):
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.get = MagicMock(return_value=_mock_response({}, status=503))
+
+        with pytest.raises(RainPointApiError, match="get_hub_firmware_info HTTP 503"):
+            await client.get_hub_firmware_info(mid=1)
+
+    @pytest.mark.asyncio
+    async def test_non_object_body_raises_api_error(self):
+        """A list body becomes the API error, not an AttributeError."""
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.get = MagicMock(return_value=_mock_response([]))
+
+        with pytest.raises(RainPointApiError, match="returned list, not an object"):
+            await client.get_hub_firmware_info(mid=1)
+
+    @pytest.mark.asyncio
+    async def test_non_object_data_returns_empty_dict(self):
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": ["x"]}))
+
+        assert await client.get_hub_firmware_info(mid=1) == {}
 
 
 class TestGetMultipleDeviceStatus:
@@ -3204,7 +3215,7 @@ class TestUpdateMainParam:
         client._session.post = MagicMock(return_value=_mock_response(json_body))
 
         distinctive_param = "0|1|marker-should-never-be-logged|"
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
             await client.update_main_param(mid=300011, param=distinctive_param)
 
         for record in caplog.records:
@@ -3342,12 +3353,12 @@ class TestUpdateSubParam:
 
         json_body = {"code": 0, "msg": "SUCCESS", "data": {"paramVersion": 3}}
         client._session.post = MagicMock(return_value=_mock_response(json_body))
-        with caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
             await client.update_sub_param(mid=1, sid=1, param=distinctive_param)
 
         client._session.post = MagicMock(return_value=_mock_response({"code": 5, "msg": "fail"}))
         with (
-            caplog.at_level(logging.DEBUG, logger="custom_components.rainpoint.api.client"),
+            caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"),
             pytest.raises(RainPointApiError),
         ):
             await client.update_sub_param(mid=1, sid=1, param=distinctive_param)
