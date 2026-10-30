@@ -11,3 +11,5 @@ htmlcov/
 .mypy_cache/
 CLAUDE.md
 .claude/
+coverage.xml
+junit.xml

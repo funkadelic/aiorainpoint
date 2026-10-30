@@ -72,3 +72,114 @@ jobs:
           cp -r tests scripts pyproject.toml "$RUNNER_TEMP/wheel-run/"
           cd "$RUNNER_TEMP/wheel-run"
           "$RUNNER_TEMP/wheel-venv/bin/python" -m pytest --no-cov --tb=short
+
+  # The requires-python floor. Runs under the same 100% coverage gate.
+  test-min:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Install the package and test dependencies
+        run: uv pip install --system . -r requirements-test.txt
+
+      - name: Run tests with pytest
+        run: pytest --tb=short
+
+  # Newest supported Python. Alone reports to Codecov and Sonar, so they report once.
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Install the package and test dependencies
+        run: uv pip install --system . -r requirements-test.txt
+
+      # legacy junit keeps file and line attributes, which Codecov Test Analytics needs.
+      - name: Run tests with pytest
+        run: pytest --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --tb=short
+
+      - name: Upload coverage to Codecov
+        if: >-
+          !contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: >-
+          !cancelled()
+          && !contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: ./junit.xml
+          report_type: test_results
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      # Skip the scan when a pull request touches nothing Sonar reads. Pushes to
+      # main always analyze so the new-code baseline stays current.
+      - name: Check whether Sonar analysis is needed
+        id: sonar
+        if: >-
+          !contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+          && github.actor != 'dependabot[bot]'
+          && (github.event_name != 'pull_request'
+              || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Not a pull request; analyzing to keep the main baseline current."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE_SHA unavailable; analyzing rather than guessing."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "${BASE_SHA}...HEAD")
+          if printf '%s\n' "$changed" \
+            | grep -qE '^(src/aiorainpoint/|tests/|sonar-project\.properties$|pyproject\.toml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No analyzed sources changed; skipping Sonar."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: SonarQube Scan
+        if: steps.sonar.outputs.run == 'true'
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

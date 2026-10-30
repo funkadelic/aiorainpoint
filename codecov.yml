@@ -1,0 +1,9 @@
+coverage:
+  status:
+    project:
+      default:
+        threshold: 1%    # allow up to 1% drop in overall coverage
+    patch:
+      default:
+        target: 100%     # new and changed lines are fully covered
+        threshold: 0%
