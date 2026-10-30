@@ -49,6 +49,11 @@ select = [
 known-first-party = ["aiorainpoint"]
 combine-as-imports = true
 
+[tool.mypy]
+# Default mode at the oldest supported Python.
+python_version = "3.13"
+files = ["src/aiorainpoint", "scripts", "tests"]
+
 [tool.coverage.run]
 relative_files = true
 

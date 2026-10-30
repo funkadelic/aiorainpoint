@@ -414,6 +414,8 @@ async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, time
             )
             await asyncio.sleep(wait_seconds)
 
+    # The loop above either breaks with a pull or raises.
+    assert raw is not None
     print(f"Fetched {len(raw)} RainPoint model entries.", file=sys.stderr)
     dropped = dropped_model_prefixes(raw)
     if dropped:
