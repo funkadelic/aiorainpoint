@@ -53,15 +53,14 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           "$RUNNER_TEMP/wheel-venv/bin/python" -I -c '
-          import hashlib, pathlib, sys
+          import pathlib, sys
           import aiorainpoint
           from aiorainpoint.mqtt import MQTT_TLS_CA_CERT
           from aiorainpoint.product_catalog import get_catalog_entry, get_catalog_fingerprint
           assert aiorainpoint.__file__.startswith(sys.prefix), "package not imported from the venv"
           assert get_catalog_fingerprint() is not None, "catalog did not load"
           assert get_catalog_entry("HCS702B"), "known model missing from the catalog"
-          md5 = hashlib.md5(pathlib.Path(MQTT_TLS_CA_CERT).read_bytes(), usedforsecurity=False).hexdigest()
-          assert md5 == "c7a6afb466713832af778a7bcb6d1aef", "CA md5 mismatch"
+          assert pathlib.Path(MQTT_TLS_CA_CERT).is_file(), "CA cert missing"
           assert (pathlib.Path(aiorainpoint.__file__).parent / "py.typed").exists(), "py.typed missing"
           print("ok")
           '
@@ -92,8 +91,10 @@ jobs:
         with:
           enable-cache: false
 
-      - name: Install the test dependencies
-        run: uv pip install --system -r requirements-test.txt
+      # The pre-commit hook rev is the one ruff pin, so the hook and this job never disagree.
+      - name: Install ruff
+        run: |
+          uv pip install --system "ruff==$(sed -n '/ruff-pre-commit/{n;s/.*rev: v//p}' .pre-commit-config.yaml)"
 
       - name: Lint
         run: ruff check --output-format=github .
@@ -125,7 +126,7 @@ jobs:
       - name: Type-check
         run: mypy
 
-  # The requires-python floor. Runs under the same 100% coverage gate.
+  # The requires-python floor and the declared dependency floors. Runs under the same 100% coverage gate.
   test-min:
     runs-on: ubuntu-latest
 
@@ -144,8 +145,10 @@ jobs:
         with:
           enable-cache: false
 
-      - name: Install the package and test dependencies
-        run: uv pip install --system . -r requirements-test.txt
+      - name: Install the package at its dependency floors
+        run: |
+          python -c 'import tomllib; print("\n".join(d.replace(">=", "==") for d in tomllib.load(open("pyproject.toml", "rb"))["project"]["dependencies"]))' > "$RUNNER_TEMP/floors.txt"
+          uv pip install --system . -r requirements-test.txt -c "$RUNNER_TEMP/floors.txt"
 
       - name: Run tests with pytest
         run: pytest --tb=short

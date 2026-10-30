@@ -22,6 +22,7 @@ jobs:
   # Required check.
   ha-constraints-min:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # The oldest Home Assistant ha-rainpoint supports (its hacs.json minimum); moves when that does.
       HA_REF: "2026.2.0"
@@ -47,7 +48,7 @@ jobs:
       - name: Fetch Home Assistant's package constraints
         run: |
           url="https://raw.githubusercontent.com/home-assistant/core/${HA_REF}/homeassistant/package_constraints.txt"
-          if ! curl -fsSL "$url" -o package_constraints.txt; then
+          if ! curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 30 "$url" -o package_constraints.txt; then
             echo "::error::Could not download package_constraints.txt for Home Assistant ${HA_REF}"
             exit 1
           fi
@@ -88,6 +89,7 @@ jobs:
   # Not a required check: dev moves daily.
   ha-constraints-dev:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       HA_REF: dev
 
@@ -112,7 +114,7 @@ jobs:
       - name: Fetch Home Assistant's package constraints
         run: |
           url="https://raw.githubusercontent.com/home-assistant/core/${HA_REF}/homeassistant/package_constraints.txt"
-          if ! curl -fsSL "$url" -o package_constraints.txt; then
+          if ! curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 30 "$url" -o package_constraints.txt; then
             echo "::error::Could not download package_constraints.txt for Home Assistant ${HA_REF}"
             exit 1
           fi
