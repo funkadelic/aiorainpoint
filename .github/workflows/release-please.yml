@@ -1,0 +1,121 @@
+name: Release Please
+
+# One file on purpose: the PyPI and TestPyPI publisher records bind to this
+# filename and to the pypi environment, and neither accepts a reusable workflow.
+# There is no concurrency group, so a release run waiting on the pypi reviewer
+# never cancels or queues a TestPyPI rehearsal dispatch.
+
+on:
+  push:
+    branches:
+      - main
+  # A push event is not guaranteed to arrive. A dispatch with an empty ref
+  # re-runs release-please alone and is the recovery path.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, branch or tag to build and upload to TestPyPI. Leave empty for a normal release run.
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          # Scoped to what release-please uses: contents for the version bump,
+          # tag and release; pull-requests for the release PR and its labels.
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+  # Runs the repository's code and suite, so it holds no id-token permission.
+  build:
+    needs: release-please
+    if: >-
+      needs.release-please.outputs.release_created == 'true'
+      || (github.event_name == 'workflow_dispatch' && inputs.ref != '')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Build the sdist and the wheel
+        run: uv build
+
+      - name: Check the archives
+        run: python scripts/check_dist.py dist
+
+      - name: Install the wheel into a clean venv
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-venv" --python 3.13
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" dist/*.whl -r requirements-test.txt
+
+      # EXPECTED_VERSION is empty on a dispatch, so only a release asserts the version.
+      - name: Smoke-test the installed wheel
+        working-directory: ${{ runner.temp }}
+        env:
+          EXPECTED_VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          "$RUNNER_TEMP/wheel-venv/bin/python" -I "$GITHUB_WORKSPACE/scripts/smoke_installed.py" ${EXPECTED_VERSION:+"$EXPECTED_VERSION"}
+
+      - name: Run the whole suite against the wheel
+        run: |
+          mkdir "$RUNNER_TEMP/wheel-run"
+          cp -r tests scripts pyproject.toml "$RUNNER_TEMP/wheel-run/"
+          cd "$RUNNER_TEMP/wheel-run"
+          "$RUNNER_TEMP/wheel-venv/bin/python" -m pytest --no-cov --tb=short
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # Only the job that mints the OIDC token, and it runs no repository code.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: ${{ github.event_name == 'workflow_dispatch' && inputs.ref != '' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
