@@ -52,18 +52,7 @@ jobs:
       - name: Smoke-test the installed wheel
         working-directory: ${{ runner.temp }}
         run: |
-          "$RUNNER_TEMP/wheel-venv/bin/python" -I -c '
-          import pathlib, sys
-          import aiorainpoint
-          from aiorainpoint.mqtt import MQTT_TLS_CA_CERT
-          from aiorainpoint.product_catalog import get_catalog_entry, get_catalog_fingerprint
-          assert aiorainpoint.__file__.startswith(sys.prefix), "package not imported from the venv"
-          assert get_catalog_fingerprint() is not None, "catalog did not load"
-          assert get_catalog_entry("HCS702B"), "known model missing from the catalog"
-          assert pathlib.Path(MQTT_TLS_CA_CERT).is_file(), "CA cert missing"
-          assert (pathlib.Path(aiorainpoint.__file__).parent / "py.typed").exists(), "py.typed missing"
-          print("ok")
-          '
+          "$RUNNER_TEMP/wheel-venv/bin/python" -I "$GITHUB_WORKSPACE/scripts/smoke_installed.py"
 
       - name: Run the whole suite against the wheel
         run: |

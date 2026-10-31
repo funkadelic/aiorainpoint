@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "aiorainpoint"
 version = "0.0.0"
 description = "Async client for the RainPoint Smart+ cloud API"
+readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -13,6 +14,9 @@ dependencies = [
     "aiohttp>=3.10",
     "paho-mqtt>=2.1.0",
 ]
+
+[project.urls]
+Source = "https://github.com/funkadelic/aiorainpoint"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiorainpoint"]
