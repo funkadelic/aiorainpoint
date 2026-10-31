@@ -1,0 +1,186 @@
+name: HA Constraints
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 8 * * 1"
+
+# Cancel a superseded pull request run. Every other run gets its own group,
+# since a pending run in a shared group is replaced by the next one queued.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Checks that the built wheel installs under Home Assistant's pinned dependencies,
+# so a release here cannot make the integration uninstallable.
+jobs:
+  # Required check.
+  ha-constraints-min:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # The oldest Home Assistant ha-rainpoint supports (its hacs.json minimum); moves when that does.
+      HA_REF: "2026.2.0"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Build the wheel
+        run: uv build --wheel
+
+      - name: Fetch Home Assistant's package constraints
+        run: |
+          url="https://raw.githubusercontent.com/home-assistant/core/${HA_REF}/homeassistant/package_constraints.txt"
+          if ! curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 30 "$url" -o package_constraints.txt; then
+            echo "::error::Could not download package_constraints.txt for Home Assistant ${HA_REF}"
+            exit 1
+          fi
+          if [ ! -s package_constraints.txt ]; then
+            echo "::error::package_constraints.txt for Home Assistant ${HA_REF} is empty"
+            exit 1
+          fi
+
+      # Home Assistant's own install flags, minus --quiet because the output is read below,
+      # plus --dry-run. A venv because uv refuses a bare interpreter.
+      - name: Resolve the wheel under those constraints
+        run: |
+          uv venv "$RUNNER_TEMP/resolve" --python 3.13
+          status=0
+          uv pip install --dry-run --python "$RUNNER_TEMP/resolve/bin/python" \
+            --index-strategy unsafe-first-match --upgrade \
+            --constraint package_constraints.txt dist/*.whl > resolve.txt 2>&1 || status=$?
+          cat resolve.txt
+          if [ "$status" -ne 0 ]; then
+            echo "::error::The wheel does not resolve under Home Assistant ${HA_REF} constraints"
+            exit 1
+          fi
+
+      - name: Check the resolved pins match Home Assistant's
+        run: |
+          for pkg in aiohttp paho-mqtt; do
+            pin=$(grep -m1 -iE "^${pkg}==" package_constraints.txt || true)
+            if [ -z "$pin" ]; then
+              echo "::error::Home Assistant ${HA_REF} no longer pins $pkg"
+              exit 1
+            fi
+            if ! grep -qxF " + $pin" resolve.txt; then
+              echo "::error::$pkg did not resolve to $pin, the pin in Home Assistant ${HA_REF}"
+              exit 1
+            fi
+          done
+
+  # Not a required check: dev moves daily.
+  ha-constraints-dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HA_REF: dev
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Build the wheel
+        run: uv build --wheel
+
+      - name: Fetch Home Assistant's package constraints
+        run: |
+          url="https://raw.githubusercontent.com/home-assistant/core/${HA_REF}/homeassistant/package_constraints.txt"
+          if ! curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 30 "$url" -o package_constraints.txt; then
+            echo "::error::Could not download package_constraints.txt for Home Assistant ${HA_REF}"
+            exit 1
+          fi
+          if [ ! -s package_constraints.txt ]; then
+            echo "::error::package_constraints.txt for Home Assistant ${HA_REF} is empty"
+            exit 1
+          fi
+
+      # Home Assistant's own install flags, minus --quiet because the output is read below,
+      # plus --dry-run. A venv because uv refuses a bare interpreter.
+      - name: Resolve the wheel under those constraints
+        run: |
+          uv venv "$RUNNER_TEMP/resolve" --python 3.14
+          status=0
+          uv pip install --dry-run --python "$RUNNER_TEMP/resolve/bin/python" \
+            --index-strategy unsafe-first-match --upgrade \
+            --constraint package_constraints.txt dist/*.whl > resolve.txt 2>&1 || status=$?
+          cat resolve.txt
+          if [ "$status" -ne 0 ]; then
+            echo "::error::The wheel does not resolve under Home Assistant ${HA_REF} constraints"
+            exit 1
+          fi
+
+      - name: Check the resolved pins match Home Assistant's
+        run: |
+          for pkg in aiohttp paho-mqtt; do
+            pin=$(grep -m1 -iE "^${pkg}==" package_constraints.txt || true)
+            if [ -z "$pin" ]; then
+              echo "::error::Home Assistant ${HA_REF} no longer pins $pkg"
+              exit 1
+            fi
+            if ! grep -qxF " + $pin" resolve.txt; then
+              echo "::error::$pkg did not resolve to $pin, the pin in Home Assistant ${HA_REF}"
+              exit 1
+            fi
+          done
+
+  # The only job with a write token. It runs on the schedule alone and checks out nothing.
+  report-scheduled-failure:
+    needs: [ha-constraints-min, ha-constraints-dev]
+    if: ${{ !cancelled() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      MIN_RESULT: ${{ needs.ha-constraints-min.result }}
+      DEV_RESULT: ${{ needs.ha-constraints-dev.result }}
+
+    steps:
+      - name: Open or update the failure issue
+        run: |
+          title="Weekly Home Assistant constraints check failing"
+          targets=""
+          [ "$MIN_RESULT" = "failure" ] && targets="ha-constraints-min"
+          [ "$DEV_RESULT" = "failure" ] && targets="${targets:+$targets, }ha-constraints-dev"
+          [ -n "$targets" ] || exit 0
+          body="Target: $targets
+          Run: $RUN_URL"
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            | jq -r --arg t "$title" 'map(select(.title == $t))[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

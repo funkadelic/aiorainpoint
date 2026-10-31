@@ -3,15 +3,15 @@ name: Catalog Freshness
 # Writes are done with a GitHub App token rather than GITHUB_TOKEN. A branch
 # pushed with GITHUB_TOKEN does not raise workflow events, so the PR this job
 # opens would sit with no checks on it forever. An App-authored push raises
-# them normally, so the catalog PR gets the same test, lint and validate run as
-# a hand-pushed one. The App and its two secrets are the ones release-please
-# already uses.
+# them normally, so the catalog PR gets the same checks as a hand-pushed one.
+# The App and its two secrets are the shared release bot's.
 permissions:
   contents: read
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    # An hour after ha-rainpoint's run, which uses the same RainPoint account.
+    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 # A manual dispatch that overlaps the weekly cron would otherwise race two
@@ -55,10 +55,10 @@ jobs:
           # step pushes with it.
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Set up Python 3.14
+      - name: Set up Python 3.13
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14"
+          python-version: "3.13"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
@@ -66,7 +66,7 @@ jobs:
           enable-cache: false
 
       - name: Install dependencies
-        run: uv pip install --system -r requirements-test.txt aiohttp
+        run: uv pip install --system .
 
       - name: Check RainPoint credentials are present
         id: creds
@@ -75,6 +75,7 @@ jobs:
           RAINPOINT_PASSWORD: ${{ secrets.RAINPOINT_PASSWORD }}
         run: |
           if [ -z "$RAINPOINT_EMAIL" ] || [ -z "$RAINPOINT_PASSWORD" ]; then
+            echo "::warning::RainPoint credentials are not set; the catalog was not checked."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -150,7 +151,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          CATALOG: custom_components/rainpoint/api/data/product_catalog.json
+          CATALOG: src/aiorainpoint/data/product_catalog.json
         run: |
           set -euo pipefail
           # The drift report and the written file are two separate pulls, so a
@@ -167,7 +168,7 @@ jobs:
           # ones.
           git switch -C "$BRANCH"
           git add "$CATALOG"
-          git commit -m "chore(catalog): refresh the product catalog snapshot"
+          git commit -m "fix(catalog): refresh the product catalog snapshot"
           # The checkout is single-branch, so nothing here has a remote-tracking
           # ref for this branch, and a bare --force-with-lease refuses with
           # "stale info" from the second push onwards. Fetching the branch is
@@ -182,7 +183,7 @@ jobs:
           git push --force-with-lease="refs/heads/${BRANCH}:${expected}" origin "$BRANCH"
 
           {
-            echo "The bundled snapshot of RainPoint's product list no longer matches a live pull, so it has been regenerated. Nothing changes for existing devices; the snapshot is what describes an unfamiliar device in a diagnostics report."
+            echo "The bundled snapshot of RainPoint's product list no longer matches a live pull, so it has been regenerated."
             echo
             echo '```'
             cat drift.txt
@@ -192,10 +193,10 @@ jobs:
           number="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')"
           if [ -z "$number" ]; then
             gh pr create --draft --base main --head "$BRANCH" \
-              --title "chore(catalog): refresh the product catalog snapshot" \
+              --title "fix(catalog): refresh the product catalog snapshot" \
               --body-file pr-body.md
           else
-            # gh pr edit --body fails on this repo with a Projects-classic
+            # gh pr edit --body fails on the maintainer's repos with a Projects-classic
             # GraphQL error and changes nothing, so the body is patched through
             # the REST API instead.
             gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${number}" -F body=@pr-body.md > /dev/null

@@ -395,7 +395,7 @@ async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, time
     for attempt in range(1, _LOGIN_ATTEMPTS + 1):
         suffix = f" (attempt {attempt} of {_LOGIN_ATTEMPTS})" if attempt > 1 else ""
         print(
-            f"Logging in as {email} and fetching the RainPoint catalog (timeout {timeout_seconds:g}s){suffix}...",
+            f"Logging in and fetching the RainPoint catalog (timeout {timeout_seconds:g}s){suffix}...",
             file=sys.stderr,
         )
         try:
@@ -414,6 +414,8 @@ async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, time
             )
             await asyncio.sleep(wait_seconds)
 
+    # The loop above either breaks with a pull or raises.
+    assert raw is not None
     print(f"Fetched {len(raw)} RainPoint model entries.", file=sys.stderr)
     dropped = dropped_model_prefixes(raw)
     if dropped:

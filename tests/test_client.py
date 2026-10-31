@@ -24,6 +24,8 @@ from tests.helpers import make_mock_session_client, mock_json_response
 # normal import.
 _REFRESH_SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "refresh_product_catalog.py"
 _refresh_spec = importlib.util.spec_from_file_location("refresh_product_catalog", _REFRESH_SCRIPT_PATH)
+assert _refresh_spec is not None
+assert _refresh_spec.loader is not None
 refresh_product_catalog = importlib.util.module_from_spec(_refresh_spec)
 _refresh_spec.loader.exec_module(refresh_product_catalog)
 trim_catalog = refresh_product_catalog.trim_catalog

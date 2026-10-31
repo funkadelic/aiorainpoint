@@ -48,3 +48,19 @@ select = [
 [tool.ruff.lint.isort]
 known-first-party = ["aiorainpoint"]
 combine-as-imports = true
+
+[tool.mypy]
+# Default mode at the oldest supported Python.
+python_version = "3.13"
+files = ["src/aiorainpoint", "scripts", "tests"]
+
+[tool.coverage.run]
+relative_files = true
+
+[tool.coverage.paths]
+# Tests run against the installed copy; map its files back to src/ for the reports.
+source = ["src/aiorainpoint/", "*/site-packages/aiorainpoint/"]
+
+[tool.coverage.report]
+# Holds on both Pythons, measured against the installed package.
+fail_under = 100
