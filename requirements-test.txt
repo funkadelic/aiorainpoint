@@ -1,5 +1,5 @@
 pytest>=8.2
-pytest-asyncio>=1.3.0
+pytest-asyncio>=1.4.1
 pytest-cov>=7.0.0
 # Exact pins: a new release can add findings, so Dependabot proposes each bump.
 mypy==2.4.0
