@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/funkadelic/aiorainpoint/compare/v0.1.0...v0.1.1) (2026-11-04)
+
+
+### Fixed
+
+* **catalog:** refresh the product catalog snapshot ([#7](https://github.com/funkadelic/aiorainpoint/issues/7)) ([407ea78](https://github.com/funkadelic/aiorainpoint/commit/407ea7856665b1dd8643480c19cc00fabab78d24))
+
+
+### Other Changes
+
+* update pytest requirement from &gt;=8.2 to &gt;=9.1.1 ([#3](https://github.com/funkadelic/aiorainpoint/issues/3)) ([b3459ba](https://github.com/funkadelic/aiorainpoint/commit/b3459ba22e5ae3aaeb71d4e38255db6a868cd3c2))
+* update pytest-asyncio requirement from &gt;=1.3.0 to &gt;=1.4.1 ([#4](https://github.com/funkadelic/aiorainpoint/issues/4)) ([30ce583](https://github.com/funkadelic/aiorainpoint/commit/30ce58352890404114d39526562e15f07f9cb3fa))
+
 ## 0.1.0 (2026-11-04)
 
 
