@@ -7,11 +7,11 @@ Every call is a GET and nothing is written, so this is safe to run against a
 live account at any time.
 
 Three endpoints, for two different reasons. /app/device/event/list is the one
-the integration never calls at all, and the likeliest home for an alert the
+the client never calls at all, and the likeliest home for an alert the
 app shows and the status frame does not carry. appHome/get and getDeviceByHid
 are endpoints the client does call, dumped here in full because its own
 methods return the parsed subset it keeps, and a field it drops on the way
-through is invisible from inside the integration.
+through is invisible from inside the client.
 
 The output is a verbatim account dump: device names, productKeys, iotIds, MACs
 and the account's own home names all appear in it. That is the point of the
@@ -63,7 +63,7 @@ async def _dump(client, session, label: str, path: str, params: dict) -> None:
     """GET one endpoint and print its body, pretty-printed when it is JSON.
 
     Borrows the client's base URL and auth headers rather than adding a method
-    per endpoint to the shipped client: nothing in the integration reads these
+    per endpoint to the shipped client: nothing in the client reads these
     responses, and a probe is not a reason to grow its API surface.
     """
     print(f"\n===== {label}  {path}  {params}")

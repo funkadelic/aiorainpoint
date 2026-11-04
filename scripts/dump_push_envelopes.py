@@ -3,7 +3,7 @@
 
 The push channel parses only the brace-prefixed section of a sub-device
 envelope's pipe-delimited param string and discards the rest, so nothing in
-the integration can say whether those other sections carry a hub identity.
+the client can say whether those other sections carry a hub identity.
 The hub connectivity frame carries its mid in section 1's tail; whether a
 sub-device envelope carries the same thing is the open question this script
 exists to answer, because attributing a pushed reading to the right hub on a
@@ -243,15 +243,15 @@ def _print_inventory(hubs: list[dict]) -> None:
     print("fetches the credentials and the mid the shipped client would have stamped.")
 
 
-class _HassShim:
-    """The two hass attributes RainPointMqttClient actually touches."""
+class _HostShim:
+    """The two host attributes RainPointMqttClient actually touches."""
 
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         """Hold the loop the client hops onto from paho's network thread."""
         self.loop = loop
 
     async def async_add_executor_job(self, func, *args):
-        """Run a blocking call in the default executor, as Home Assistant does."""
+        """Run a blocking call in the default executor, as a host application does."""
         return await self.loop.run_in_executor(None, func, *args)
 
 
@@ -321,7 +321,7 @@ async def _run_dump(args: argparse.Namespace, password: str) -> int:
 
         dumping_class = _build_dumping_client_class()
         mqtt_client = dumping_class(
-            _HassShim(asyncio.get_running_loop()),
+            _HostShim(asyncio.get_running_loop()),
             client,
             None,
             hub["deviceName"],

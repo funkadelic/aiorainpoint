@@ -65,7 +65,7 @@ _SUB_POWER_MODE_KEY = "5"
 # width are accepted -- the semantic mapping is the set {"0", "1", "2"},
 # but every blob captured from the only known target device uses the
 # zero-padded form ("01", "02"), so the unpadded set alone would ship the
-# entity dead on the one device this control targets. Nothing outside these six
+# control dead on the one device this control targets. Nothing outside these six
 # literal tokens is ever accepted; widening this set is a captured-evidence
 # decision, never a guess.
 _SUB_POWER_MODE_WIRE_VALUES = {
@@ -685,7 +685,7 @@ def valid_rssi_dbm(value) -> int | None:
     placeholder or read the wrong byte, and publishing it puts a number in
     front of the user where unknown is the honest answer. Applied where the
     reading is written rather than where it is read, so the attributes and the
-    diagnostics dump inherit the same guarantee the entity does.
+    diagnostics dump inherit the same guarantee the reading does.
 
     Note the shape this cannot catch: a negative number read out of the wrong
     byte is still negative. Only a structural read fixes that, which is why the

@@ -9,7 +9,7 @@ named fields instead of an opaque hex string.
 
 It is used only to enrich the unknown-device diagnostic sensor and the
 pre-filled bug report. Values here are best-effort and explicitly unverified;
-nothing in the entity or control path consumes them.
+nothing in a caller's state or control path should consume them.
 """
 
 import logging

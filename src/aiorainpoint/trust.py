@@ -45,7 +45,7 @@ def has_bluetooth_control_identity(model: str | None, model_code: int | str | No
     collapsed into the RF negative, and it is the failure this reads for: a
     catalog refresh that gives an already-supported Bluetooth valve a new
     model code would drop it onto the RF endpoint, which rejects that model
-    outright, so the zone would get a valve entity that errors on every
+    outright, so the zone would get valve control that errors on every
     command. The fallback asks the model's other variants instead, and routes
     to the datapoint endpoint only when every one of them declares the
     identity. No model in the committed catalog mixes the two endpoints

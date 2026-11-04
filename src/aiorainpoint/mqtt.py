@@ -345,7 +345,7 @@ def _frame_mid(section_one: str) -> int | None:
     points resolve the mid against the hubs the poll discovered and drop
     anything else, so a pushed frame can only ever update a hub that already
     exists in coordinator data. Push cannot invent a hub, rename one, or
-    reach a home this config entry did not select; the worst a malformed or
+    reach a home the caller did not select; the worst a malformed or
     hostile identity can do is address nothing and be dropped. Do not remove
     those drops on the grounds that this parser validates the mid, because it
     deliberately does not: it validates only the shape.
@@ -531,10 +531,10 @@ class RainPointMqttClient:
         # MQTT_UNRECOGNISED_SHAPE_LOG_LIMIT regardless of how chatty the
         # downlink gets.
         self._unrecognised_shapes: set[str] = set()
-        # Observability seam: listeners registered by the diagnostic entities so
-        # they re-render on connect/disconnect/message. coordinator.async_update_listeners
-        # does not fire on these transitions (the live state is not in coordinator.data),
-        # so the entities drive their own async_write_ha_state from here.
+        # Observability seam: listeners registered by a consumer's diagnostic views so
+        # they re-render on connect/disconnect/message. A poll-data update notification
+        # does not fire on these transitions (the live state is not in the polled data),
+        # so those views refresh themselves from here.
         self._state_listeners: list[Callable[[], None]] = []
 
         self._stopping = False
@@ -589,9 +589,9 @@ class RainPointMqttClient:
     def add_state_listener(self, listener: Callable[[], None]) -> None:
         """Register a callback fired whenever connection state or liveness changes.
 
-        The diagnostic entities register here in async_added_to_hass so that a
+        A consumer's diagnostic views register here so that a
         connect/disconnect/message transition re-renders them immediately; their
-        live state is not carried in coordinator.data.
+        live state is not carried in the polled data.
         """
         self._state_listeners.append(listener)
 
@@ -939,7 +939,7 @@ class RainPointMqttClient:
         self._dispatch_push(topic, payload)
         # Single notify, and after the dispatch rather than before it: a handler
         # may have stamped the per-hub clock, and firing first meant every
-        # attributable frame wrote each diagnostic entity's state twice.
+        # attributable frame notified each diagnostic listener twice.
         self._notify_state_listeners()
 
     def _drop_if_no_coordinator(self) -> bool:
@@ -963,7 +963,7 @@ class RainPointMqttClient:
 
         The mid is resolved against the poll's hubs first, and for two reasons.
         Truthfulness: a mid the coordinator is about to drop must not advance a
-        clock no entity will ever read. Boundedness: without the check this map
+        clock no caller will ever read. Boundedness: without the check this map
         takes one permanent entry per distinct mid a payload names, in a class
         that caps its only comparable structure (_unrecognised_shapes) against
         exactly that. The caller has already established the coordinator is

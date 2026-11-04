@@ -85,7 +85,7 @@ _DP_BASE_USAGE = 0x28
 # to that same 0.8, so the raw count is preserved next to the converted value:
 # a finer calibration from a larger run can be applied later without
 # re-capturing anything, and without invalidating stored history, since the
-# usage entity deliberately stays out of long-term statistics.
+# usage reading should stay out of long-term statistics.
 USAGE_GALLONS_PER_COUNT = 1 / 500
 
 # Litres per raw count on the HCS008FRF's volume datapoints. Confirmed against
@@ -563,7 +563,7 @@ _HIC801W_FIELD_WATER_ZONES = 37
 # decode_packed_timestamp renders it as the naive ISO string
 # "2020-01-01T02:00:00", a real-looking date, so it is suppressed
 # deliberately rather than filtered by accident: a 2020 timestamp in a
-# TIMESTAMP entity is wrong state, not absent state, so decode_hic801w
+# timestamp reading is wrong state, not absent state, so decode_hic801w
 # returns None for run_ends_at whenever it sees this word.
 _HIC801W_EVTIME_IDLE_SENTINEL = 0x00422000
 
@@ -729,7 +729,7 @@ def _attach_single_outlet_usage(zone: dict, usage_bytes: bytes | None) -> None:
     """Add the last run's water usage to a single-outlet zone.
 
     Keys stay absent without a 4-byte record (HTP160FRF), so "not reported" differs from zero.
-    Model-agnostic: the factor is only verified on the HTV145FRF, the one model given an entity.
+    Model-agnostic: the factor is only verified on the HTV145FRF, the one model whose usage is exposed.
     """
     if usage_bytes is None or len(usage_bytes) != 4:
         return
@@ -1467,7 +1467,7 @@ def decode_flow_meter(raw: str) -> dict:
 
     Volumes arrive as tenths of a liter and durations as whole seconds. The
     "current" pair reads zero whenever no run is in progress, which is the
-    state the RainPoint app renders as "--", so those two entities sit at zero
+    state the RainPoint app renders as "--", so those two readings sit at zero
     between runs rather than going unknown.
     """
 
@@ -1709,7 +1709,7 @@ def decode_pool(raw: str) -> dict:
     confirmed a raw 622 against an app reading of 16.8 C.
 
     STA_TREND is left undecoded. No capture pairs its value with a known
-    direction, and the entities do not read it.
+    direction, and nothing reads it.
     """
 
     _LOGGER.debug("Decoding pool sensor: %s", raw)
