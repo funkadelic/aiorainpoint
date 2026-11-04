@@ -129,6 +129,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions: {}
+    # Queue rather than race, so two releases finishing together apply in order.
+    concurrency:
+      group: integration-pin-bump
+      cancel-in-progress: false
     env:
       BRANCH: automated/aiorainpoint-bump
       PIN_FILE: custom_components/rainpoint/manifest.json
@@ -164,6 +168,35 @@ jobs:
           TARGET_REPO: ${{ github.repository_owner }}/ha-rainpoint
         run: |
           set -euo pipefail
+          if [ -z "$VERSION" ]; then
+            echo "::error::The release produced no version, so there is nothing to pin."
+            exit 1
+          fi
+          # Also keeps any unexpected shape out of sed, git and gh.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::notice::$VERSION is not a final release, so no pin bump is opened."
+            exit 0
+          fi
+          pin_of() { jq -r '.requirements[] | select(startswith("aiorainpoint==")) | sub("^aiorainpoint=="; "")'; }
+          # Never move the pin to a version that is not newer than main's pin or
+          # the open bump PR's pin.
+          floors="$(pin_of < "$PIN_FILE")"
+          number="$(gh pr list --repo "$TARGET_REPO" --head "$BRANCH" --state open --json number --jq '.[].number')"
+          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" 2>/dev/null || true
+          if [ -n "$number" ] && git rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}" >/dev/null; then
+            floors="$floors $(git show "refs/remotes/origin/${BRANCH}:${PIN_FILE}" | pin_of)"
+          fi
+          # Numeric triple, with a pre-release floor ranking below its own X.Y.Z.
+          if ! python3 -c 'import re,sys
+          k=lambda v:(tuple(map(int,re.match(r"(\d+)\.(\d+)\.(\d+)",v).groups())),re.fullmatch(r"\d+\.\d+\.\d+",v) is not None)
+          sys.exit(0 if all(k(sys.argv[1])>k(f) for f in sys.argv[2:]) else 1)' "$VERSION" $floors; then
+            echo "::notice::$VERSION is not newer than $floors, so nothing is pushed."
+            exit 0
+          fi
+          if ! curl -fsS --retry 10 --retry-delay 30 --retry-all-errors -o /dev/null "https://pypi.org/pypi/aiorainpoint/$VERSION/json"; then
+            echo "::error::PyPI does not serve aiorainpoint $VERSION yet. Re-run this job alone once it does."
+            exit 1
+          fi
           sed -i -E "s/\"aiorainpoint==[^\"]*\"/\"aiorainpoint==${VERSION}\"/" "$PIN_FILE"
           test "$(git diff --numstat)" = "$(printf '1\t1\t%s' "$PIN_FILE")" || { echo "::error::The pin rewrite changed more than the pin line in $PIN_FILE"; exit 1; }
           git config user.name "${APP_SLUG}[bot]"
@@ -173,11 +206,9 @@ jobs:
           git commit -q -m "fix(deps): bump aiorainpoint to $VERSION"
           # Same explicit lease as the catalog refresh: an absent branch leaves
           # the expectation empty, which git reads as "must not exist yet".
-          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" 2>/dev/null || true
           expected="$(git rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}" || true)"
           git push --force-with-lease="refs/heads/${BRANCH}:${expected}" origin "$BRANCH"
           printf '%s\n\n%s\n' "aiorainpoint $VERSION is on PyPI. This moves the integration's pin to it." "Release notes: $RELEASE_URL" > "$RUNNER_TEMP/bump-body.md"
-          number="$(gh pr list --repo "$TARGET_REPO" --head "$BRANCH" --state open --json number --jq '.[].number')"
           if [ -z "$number" ]; then
             gh pr create --repo "$TARGET_REPO" --draft --base main --head "$BRANCH" --title "fix(deps): bump aiorainpoint to $VERSION" --body-file "$RUNNER_TEMP/bump-body.md"
           else
