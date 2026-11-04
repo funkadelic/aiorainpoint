@@ -119,3 +119,67 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           repository-url: ${{ github.event_name == 'workflow_dispatch' && inputs.ref != '' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+
+  # Opens a draft pull request on the integration that moves its pin to the
+  # version just uploaded. Runs no repository code and holds no GITHUB_TOKEN
+  # permission: the App token below is its only credential.
+  bump:
+    needs: [release-please, publish]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    env:
+      BRANCH: automated/aiorainpoint-bump
+      PIN_FILE: custom_components/rainpoint/manifest.json
+
+    steps:
+      # A branch pushed with an App token raises workflow events, so the pull
+      # request gets the integration's checks.
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          repositories: ha-rainpoint
+          permission-contents: write
+          permission-pull-requests: write
+
+      # Credentials stay persisted because the push below uses them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/ha-rainpoint
+          ref: main
+          path: ha-rainpoint
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Open or update the pin bump PR
+        working-directory: ha-rainpoint
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.release-please.outputs.tag_name }}
+          TARGET_REPO: ${{ github.repository_owner }}/ha-rainpoint
+        run: |
+          set -euo pipefail
+          sed -i -E "s/\"aiorainpoint==[^\"]*\"/\"aiorainpoint==${VERSION}\"/" "$PIN_FILE"
+          test "$(git diff --numstat)" = "$(printf '1\t1\t%s' "$PIN_FILE")" || { echo "::error::The pin rewrite changed more than the pin line in $PIN_FILE"; exit 1; }
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add "$PIN_FILE"
+          git commit -q -m "fix(deps): bump aiorainpoint to $VERSION"
+          # Same explicit lease as the catalog refresh: an absent branch leaves
+          # the expectation empty, which git reads as "must not exist yet".
+          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" 2>/dev/null || true
+          expected="$(git rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}" || true)"
+          git push --force-with-lease="refs/heads/${BRANCH}:${expected}" origin "$BRANCH"
+          printf '%s\n\n%s\n' "aiorainpoint $VERSION is on PyPI. This moves the integration's pin to it." "Release notes: $RELEASE_URL" > "$RUNNER_TEMP/bump-body.md"
+          number="$(gh pr list --repo "$TARGET_REPO" --head "$BRANCH" --state open --json number --jq '.[].number')"
+          if [ -z "$number" ]; then
+            gh pr create --repo "$TARGET_REPO" --draft --base main --head "$BRANCH" --title "fix(deps): bump aiorainpoint to $VERSION" --body-file "$RUNNER_TEMP/bump-body.md"
+          else
+            gh api -X PATCH "repos/$TARGET_REPO/pulls/$number" -f title="fix(deps): bump aiorainpoint to $VERSION" -F body=@"$RUNNER_TEMP/bump-body.md" > /dev/null
+          fi
