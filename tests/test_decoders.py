@@ -170,7 +170,7 @@ class TestDecodeHtv213frfValve:
     # --- ASCII full-field assertions ---
 
     def test_ascii_payload_asserts_all_fields(self):
-        """ASCII payload decodes every field the integration exposes."""
+        """ASCII payload decodes every field the decoder exposes."""
         result = decode_htv213frf_valve(SAMPLE_HTV245_ASCII_PAYLOAD)
 
         assert result["type"] == "valve_hub"
@@ -590,8 +590,8 @@ class TestDecodeHtv145frf:
         """A frame with no work-state record reports no zones, so no hub link.
 
         hub_online is zone presence: a frame that describes no outlet is no
-        evidence the outlet is reachable, and the valve entity must not read
-        available on it.
+        evidence the outlet is reachable, and a caller must not treat the
+        valve as available on it.
         """
         result = decode_htv145frf("10#DC01")
         assert result["battery_flag"] == 1
@@ -696,7 +696,7 @@ class TestDecodeHtv113frf:
         """This unit reports STA_BAT 0x03, which no capture pairs with a charge level.
 
         The flag is surfaced and the percentage is withheld, and the valve
-        entity stays available either way: hub_online is zone presence, not
+        stays available either way: hub_online is zone presence, not
         this byte. Reading 0x03 as an online flag is what this decoder used to
         do, which both hid the flag and put valve availability on a charge
         reading.
@@ -1749,7 +1749,7 @@ class TestValveHubErrorPath:
         assert result["raw_bytes"] == []
         assert result["tlv_raw"] == {}
         # A frame that did not decode carries no reading of any kind. This was
-        # 0, which the signal entity rendered as a confident "0 dBm".
+        # 0, which a caller would render as a confident "0 dBm".
         assert result["rssi_dbm"] is None
         assert "missing" in result["error"].lower() or "unknown" in result["error"].lower()
 
@@ -3164,7 +3164,7 @@ class TestFlowMeterDecoder:
 
         The point is that a short frame degrades field by field rather than
         poisoning the fields it does carry, so a firmware that stops sending
-        one datapoint costs exactly that one entity.
+        one datapoint costs exactly that one reading.
         """
         truncated = FLOWMETER_IDLE_HEX[: 3 + 2 * 40]
 

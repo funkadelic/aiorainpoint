@@ -267,7 +267,7 @@ class TestShippedCatalog:
         assert all("dpCode" in dp for dp in entry)
 
     def test_shipped_catalog_declares_only_status_and_control_identities(self):
-        """The trim drops the provisioning/config namespaces the integration never reads.
+        """The trim drops the provisioning/config namespaces the client never reads.
 
         Shipping P_/C_/S_/ATTR_ entries would bloat a file that goes out to
         every user with metadata no code path consumes.
@@ -332,7 +332,7 @@ class TestCatalogFingerprint:
         return _fingerprint_catalog(_read_catalog_bytes(path))
 
     def test_fingerprint_is_twelve_hex_characters(self, tmp_path):
-        """Short enough to sit in an entity attribute, and hex so it renders anywhere."""
+        """Short enough to sit in a state attribute, and hex so it renders anywhere."""
         path = tmp_path / "catalog.json"
         path.write_text(json.dumps({"MODEL": {"1": {"portNumber": 1, "dp": []}}}), encoding="utf-8")
 

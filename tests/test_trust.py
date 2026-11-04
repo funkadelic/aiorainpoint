@@ -113,7 +113,7 @@ class TestHasBluetoothControlIdentity:
         moves the HTV210B to a model code the committed snapshot does not
         carry leaves the pair unresolvable, and the RF endpoint rejects this
         model outright, so the old collapse to False would have built a valve
-        entity that errors on every command."""
+        control that errors on every command."""
         assert has_bluetooth_control_identity("HTV210B", 999) is True
 
     def test_false_for_an_rf_model_the_catalog_lists_under_another_code(self):

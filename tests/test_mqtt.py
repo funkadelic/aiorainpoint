@@ -43,7 +43,7 @@ def _fake_creds(device_name="name-A", product_key="pk123") -> dict:
 _DEFAULT_TEST_HUB_MID = 4242
 
 
-def _make_mqtt_client(hass, paho_instance, creds=None, hub_mid=_DEFAULT_TEST_HUB_MID) -> RainPointMqttClient:
+def _make_mqtt_client(loop_host, paho_instance, creds=None, hub_mid=_DEFAULT_TEST_HUB_MID) -> RainPointMqttClient:
     """Make an MQTT client wired to a fake paho instance via an injected factory."""
     rainpoint_client = MagicMock()
     rainpoint_client.get_subscribe_status = AsyncMock(return_value=creds or _fake_creds())
@@ -51,9 +51,9 @@ def _make_mqtt_client(hass, paho_instance, creds=None, hub_mid=_DEFAULT_TEST_HUB
     factory = MagicMock(return_value=paho_instance)
 
     return RainPointMqttClient(
-        hass.loop,
+        loop_host.loop,
         rainpoint_client,
-        executor_job=hass.async_add_executor_job,
+        executor_job=loop_host.async_add_executor_job,
         hub_device_name="hub-device",
         hub_product_key="hub-pk",
         hub_mid=hub_mid,
@@ -62,23 +62,23 @@ def _make_mqtt_client(hass, paho_instance, creds=None, hub_mid=_DEFAULT_TEST_HUB
     )
 
 
-def _make_hass(loop) -> MagicMock:
-    """Make hass helper with a real event loop wired in.
+def _make_loop_host(loop) -> MagicMock:
+    """Make a host double with a real event loop wired in.
 
     async_add_executor_job is stubbed to invoke and await the submitted callable
-    inline (a plain MagicMock hass would return a non-awaitable MagicMock and
+    inline (a plain MagicMock host would return a non-awaitable MagicMock and
     silently stop exercising the real connect path). Running it inline preserves
     every behavioral assertion -- connect() side effects, raising to drive retry,
     call counts -- exactly as when connect() ran synchronously.
     """
-    hass = MagicMock()
-    hass.loop = loop
+    loop_host = MagicMock()
+    loop_host.loop = loop
 
     async def _async_add_executor_job(func, *args):
         return func(*args)
 
-    hass.async_add_executor_job = _async_add_executor_job
-    return hass
+    loop_host.async_add_executor_job = _async_add_executor_job
+    return loop_host
 
 
 def _make_fake_paho() -> MagicMock:
@@ -138,9 +138,9 @@ class TestConnectDoesNotSubscribe:
     async def test_async_start_never_subscribes(self):
         """async_start() launches the supervisor, which connects but never subscribes."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -164,9 +164,9 @@ class TestMessageReceiptLogging:
     async def test_on_message_logs_topic_kind_len_and_count_not_payload(self, caplog):
         """Driving on_message produces exactly one debug record with the action suffix + int len, no raw bytes."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -201,11 +201,11 @@ class TestMessageReceiptLogging:
         hid the hub connectivity frames for a whole milestone. The
         announcement names the shape and topic and never carries the payload,
         which observed frames of this family embed an account id and a mid
-        into and INFO reaches the default Home Assistant log."""
+        into and INFO reaches a consumer's default log."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -241,9 +241,9 @@ class TestMessageReceiptLogging:
         arguments had already been evaluated.
         """
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -303,9 +303,9 @@ class TestMessageReceiptLogging:
     async def test_message_count_increments_across_two_messages(self):
         """The running count increments once per delivered message."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -326,15 +326,15 @@ class TestMessageReceiptLogging:
     async def test_on_message_never_mutates_state_directly(self):
         """_on_message only schedules work via call_soon_threadsafe -- no direct mutation."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)  # real loop for the supervisor task; call_soon_threadsafe is patched below
+        loop_host = _make_loop_host(loop)  # real loop for the supervisor task; call_soon_threadsafe is patched below
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
         # Replace call_soon_threadsafe with a plain mock so it never actually fires.
-        hass.loop = MagicMock()
-        client._loop = hass.loop
+        loop_host.loop = MagicMock()
+        client._loop = loop_host.loop
 
         msg = SimpleNamespace(topic="/sys/pk123/name-A/thing/service/property/set", payload=b"hello")
         client._on_message(fake_paho, None, msg)
@@ -342,16 +342,16 @@ class TestMessageReceiptLogging:
         # call_soon_threadsafe was scheduled but never actually invoked (mock loop) --
         # message_count must still be zero, proving no direct mutation happened.
         assert client.message_count == 0
-        hass.loop.call_soon_threadsafe.assert_called_once()
-        scheduled_func, *scheduled_args = hass.loop.call_soon_threadsafe.call_args.args
+        loop_host.loop.call_soon_threadsafe.assert_called_once()
+        scheduled_func, *scheduled_args = loop_host.loop.call_soon_threadsafe.call_args.args
         assert scheduled_func == client._handle_message
 
         # Now simulate the event loop actually running the scheduled callback.
         scheduled_func(*scheduled_args)
         assert client.message_count == 1
 
-        # async_start above spawned the supervisor task. Home Assistant's test
-        # cleanup fails a test that leaves one running, so tear it down the way
+        # async_start above spawned the supervisor task. A host's test
+        # cleanup can fail a test that leaves one running, so tear it down the way
         # the sibling cases do.
         await client.async_disconnect()
 
@@ -363,9 +363,9 @@ class TestSecretRedaction:
     async def test_no_secret_leaks_across_full_lifecycle(self, caplog):
         """deviceSecret and the derived HMAC password never appear in caplog text."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho, creds=_fake_creds())
+        client = _make_mqtt_client(loop_host, fake_paho, creds=_fake_creds())
 
         with caplog.at_level(logging.DEBUG):
             await client.async_start()
@@ -392,10 +392,10 @@ class TestSecretRedaction:
         a length and nothing else.
         """
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         creds = _fake_creds(device_name="MAC-A0B0C0D00003", product_key="FakePrdKy9Z")
-        client = _make_mqtt_client(hass, fake_paho, creds=creds)
+        client = _make_mqtt_client(loop_host, fake_paho, creds=creds)
 
         with caplog.at_level(logging.DEBUG):
             await client.async_start()
@@ -455,16 +455,16 @@ def _push_param_payload(inner):
 
 
 def _make_push_client(
-    hass, fake_paho, coordinator, hub_mid=_DEFAULT_TEST_HUB_MID, time_source=lambda: 1000.0
+    loop_host, fake_paho, coordinator, hub_mid=_DEFAULT_TEST_HUB_MID, time_source=lambda: 1000.0
 ) -> RainPointMqttClient:
     """Build an MQTT client wired to a coordinator and a fixed hub mid."""
     rainpoint_client = MagicMock()
     rainpoint_client.get_subscribe_status = AsyncMock(return_value=_fake_creds())
     factory = MagicMock(return_value=fake_paho)
     return RainPointMqttClient(
-        hass.loop,
+        loop_host.loop,
         rainpoint_client,
-        executor_job=hass.async_add_executor_job,
+        executor_job=loop_host.async_add_executor_job,
         hub_device_name="hub-device",
         hub_product_key="hub-pk",
         coordinator=coordinator,
@@ -503,9 +503,9 @@ class TestPushEnvelopeFailSafe:
         """A parseable payload received before a coordinator is wired is dropped
         (defensive) without raising and without any apply_push_update target."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)  # no coordinator wired
+        client = _make_mqtt_client(loop_host, fake_paho)  # no coordinator wired
         await client.async_start()
         await _settle()
 
@@ -602,10 +602,10 @@ class TestPushEnvelopeFailSafe:
     async def test_malformed_payload_through_handler_never_calls_coordinator(self):
         """A malformed payload driven through the HA-loop handler drops silently."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         coordinator = MagicMock(spec=PushCoordinator)
-        client = _make_push_client(hass, fake_paho, coordinator)
+        client = _make_push_client(loop_host, fake_paho, coordinator)
         await client.async_start()
         await _settle()
 
@@ -623,10 +623,10 @@ class TestPushEnvelopeFailSafe:
         """The push path logs topic + length only; a secret-shaped token embedded
         in the payload never reaches a log record in the clear."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         coordinator = MagicMock(spec=PushCoordinator)
-        client = _make_push_client(hass, fake_paho, coordinator)
+        client = _make_push_client(loop_host, fake_paho, coordinator)
         await client.async_start()
         await _settle()
 
@@ -653,10 +653,10 @@ class TestPushEnvelopeParsing:
         """Each D-prefixed sub-device produces exactly one apply_push_update call
         with the fixed hub mid, the sid, its raw value, and the device timestamp."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         coordinator = MagicMock(spec=PushCoordinator)
-        client = _make_push_client(hass, fake_paho, coordinator, hub_mid=4242)
+        client = _make_push_client(loop_host, fake_paho, coordinator, hub_mid=4242)
         assert client.hub_mid == 4242
         await client.async_start()
         await _settle()
@@ -684,10 +684,10 @@ class TestPushEnvelopeParsing:
     async def test_housekeeping_keys_are_ignored(self):
         """Only D-prefixed keys route; the update/state keys never call the coordinator."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         coordinator = MagicMock(spec=PushCoordinator)
-        client = _make_push_client(hass, fake_paho, coordinator)
+        client = _make_push_client(loop_host, fake_paho, coordinator)
         await client.async_start()
         await _settle()
 
@@ -707,10 +707,10 @@ class TestPushEnvelopeParsing:
     async def test_last_message_at_updates_even_on_undecodable_payload(self):
         """An undecodable payload still stamps liveness and never calls the coordinator."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         coordinator = MagicMock(spec=PushCoordinator)
-        client = _make_push_client(hass, fake_paho, coordinator)
+        client = _make_push_client(loop_host, fake_paho, coordinator)
         await client.async_start()
         await _settle()
 
@@ -1249,9 +1249,9 @@ class TestAsyncDisconnect:
     async def test_disconnect_before_connect_is_a_noop(self):
         """Calling async_disconnect() before async_start() does not raise."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_disconnect()  # must not raise
 
@@ -1259,9 +1259,9 @@ class TestAsyncDisconnect:
     async def test_disconnect_stops_loop_and_disconnects(self):
         """async_disconnect() calls loop_stop() then disconnect() on the underlying paho client."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -1288,9 +1288,9 @@ class TestConnectCallbackHandling:
     async def test_on_connect_marks_connected_via_loop(self):
         """_on_connect schedules _handle_connect via call_soon_threadsafe; connected flips after it runs."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -1305,9 +1305,9 @@ class TestConnectCallbackHandling:
     async def test_on_connect_nonzero_reason_code_reports_not_connected(self, caplog):
         """A non-zero reason_code (auth rejection) keeps connected False and warns."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -1324,9 +1324,9 @@ class TestConnectCallbackHandling:
     async def test_on_disconnect_marks_disconnected_via_loop(self):
         """_on_disconnect schedules _handle_disconnect; connected flips false after it runs."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -1363,16 +1363,16 @@ class TestPahoAutoReconnectDisabled:
     async def test_connect_passes_reconnect_on_failure_false_to_factory(self):
         """The paho client factory is called with reconnect_on_failure=False."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         rainpoint_client = MagicMock()
         rainpoint_client.get_subscribe_status = AsyncMock(return_value=_fake_creds())
         factory = MagicMock(return_value=fake_paho)
 
         client = RainPointMqttClient(
-            hass.loop,
+            loop_host.loop,
             rainpoint_client,
-            executor_job=hass.async_add_executor_job,
+            executor_job=loop_host.async_add_executor_job,
             hub_device_name="hub-device",
             hub_product_key="hub-pk",
             paho_client_factory=factory,
@@ -1390,8 +1390,8 @@ class TestBackoffDelay:
     """Exponential backoff is capped at a ceiling, with jitter."""
 
     def _client(self):
-        hass = MagicMock()
-        return _make_mqtt_client(hass, _make_fake_paho())
+        loop_host = MagicMock()
+        return _make_mqtt_client(loop_host, _make_fake_paho())
 
     def test_backoff_delay_monotonic_then_capped(self):
         """Pre-jitter base grows exponentially then flattens at the ceiling."""
@@ -1434,10 +1434,10 @@ class TestSupervisorUnboundedRetry:
     async def test_supervisor_retries_after_six_plus_failures(self):
         """A fake paho whose connect() raises repeatedly never permanently kills the supervisor."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         fake_paho.connect.side_effect = [OSError("connection refused")] * 6 + [None] * 10
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         with patch.object(RainPointMqttClient, "_schedule_reconnect", new=AsyncMock(side_effect=_instant_sleep)):
             await client.async_start()
@@ -1453,10 +1453,10 @@ class TestSupervisorUnboundedRetry:
     async def test_supervisor_reraises_on_generic_exception_not_bounded_by_range(self):
         """No bounded range(N) governs the loop -- it keeps re-arming past any fixed count."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         fake_paho.connect.side_effect = RainPointMqttError("boom")
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         with patch.object(RainPointMqttClient, "_schedule_reconnect", new=AsyncMock(side_effect=_instant_sleep)):
             await client.async_start()
@@ -1477,10 +1477,10 @@ class TestSupervisorAttemptCounting:
     async def test_consecutive_failures_pass_increasing_attempt_numbers_and_the_real_delay(self):
         """Each consecutive failure passes an incrementing attempt number and its actual delay to the reconnect wait."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         fake_paho.connect.side_effect = OSError("connection refused")
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         seen_attempts: list[int] = []
 
@@ -1508,10 +1508,10 @@ class TestSupervisorAttemptCounting:
         """A success resets the streak, so the next failure counts from 1 again
         rather than continuing from where the streak left off."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         fake_paho.connect.side_effect = [OSError("boom"), None, OSError("boom"), OSError("boom")]
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         seen_attempts: list[int] = []
 
@@ -1557,7 +1557,7 @@ def test_no_bounded_range_governs_reconnect():
     assert "range(" not in source
 
 
-def _make_mqtt_client_with_distinct_paho_instances(hass, get_subscribe_status_mock=None) -> tuple:
+def _make_mqtt_client_with_distinct_paho_instances(loop_host, get_subscribe_status_mock=None) -> tuple:
     """Build a client whose paho factory returns a NEW mock instance per call, so
     tests can distinguish the old (pre-renewal) client from the new one."""
     rainpoint_client = MagicMock()
@@ -1571,9 +1571,9 @@ def _make_mqtt_client_with_distinct_paho_instances(hass, get_subscribe_status_mo
 
     factory = MagicMock(side_effect=_factory)
     client = RainPointMqttClient(
-        hass.loop,
+        loop_host.loop,
         rainpoint_client,
-        executor_job=hass.async_add_executor_job,
+        executor_job=loop_host.async_add_executor_job,
         hub_device_name="hub-device",
         hub_product_key="hub-pk",
         paho_client_factory=factory,
@@ -1590,15 +1590,15 @@ class TestCredentialRenewal:
         """Exactly the four construction-bound identity args reach
         get_subscribe_status, in order, not swapped, dropped, or nulled."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         rainpoint_client = MagicMock()
         rainpoint_client.get_subscribe_status = AsyncMock(return_value=_fake_creds())
         factory = MagicMock(return_value=fake_paho)
         client = RainPointMqttClient(
-            hass.loop,
+            loop_host.loop,
             rainpoint_client,
-            executor_job=hass.async_add_executor_job,
+            executor_job=loop_host.async_add_executor_job,
             hub_device_name="dev-x",
             hub_product_key="pk-x",
             hub_mid=555,
@@ -1619,8 +1619,8 @@ class TestCredentialRenewal:
         """Crossing the (patched-instant) renewal deadline re-fetches creds, disconnects
         the old paho client, and reconnects a new one."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
-        client, rainpoint_client, instances = _make_mqtt_client_with_distinct_paho_instances(hass)
+        loop_host = _make_loop_host(loop)
+        client, rainpoint_client, instances = _make_mqtt_client_with_distinct_paho_instances(loop_host)
 
         with patch.object(RainPointMqttClient, "_sleep", new=AsyncMock(side_effect=_instant_sleep)):
             await client.async_start()
@@ -1645,8 +1645,8 @@ class TestCredentialRenewal:
         """on_http_relogin() re-fetches credentials and reconnects immediately -- the
         real (unpatched, ~510s) renewal delay is never actually waited out."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
-        client, rainpoint_client, instances = _make_mqtt_client_with_distinct_paho_instances(hass)
+        loop_host = _make_loop_host(loop)
+        client, rainpoint_client, instances = _make_mqtt_client_with_distinct_paho_instances(loop_host)
 
         await client.async_start()
         await _settle(times=15)
@@ -1665,7 +1665,7 @@ class TestCredentialRenewal:
         """A get_subscribe_status failure during renewal is caught by the same
         retry path -- the supervisor keeps running, a retry is scheduled."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         call_state = {"n": 0}
 
         async def _flaky_get_subscribe_status(*_args, **_kwargs):
@@ -1675,7 +1675,9 @@ class TestCredentialRenewal:
             return _fake_creds()
 
         get_subscribe_status_mock = AsyncMock(side_effect=_flaky_get_subscribe_status)
-        client, _rainpoint_client, _instances = _make_mqtt_client_with_distinct_paho_instances(hass, get_subscribe_status_mock)
+        client, _rainpoint_client, _instances = _make_mqtt_client_with_distinct_paho_instances(
+            loop_host, get_subscribe_status_mock
+        )
 
         with patch.object(RainPointMqttClient, "_sleep", new=AsyncMock(side_effect=_instant_sleep)):
             await client.async_start()
@@ -1800,16 +1802,16 @@ class TestProtocolTimestampUsesWallClock:
         """The clientId embeds int(wall_clock_source() * 1000), independent of the
         monotonic renewal seam (time_source)."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         rainpoint_client = MagicMock()
         rainpoint_client.get_subscribe_status = AsyncMock(return_value=_fake_creds())
         factory = MagicMock(return_value=fake_paho)
 
         client = RainPointMqttClient(
-            hass.loop,
+            loop_host.loop,
             rainpoint_client,
-            executor_job=hass.async_add_executor_job,
+            executor_job=loop_host.async_add_executor_job,
             hub_device_name="hub-device",
             hub_product_key="hub-pk",
             paho_client_factory=factory,
@@ -1842,9 +1844,9 @@ class TestSupervisorTeardown:
         """The supervisor task is done() immediately after async_disconnect() returns
         -- not merely cancel-requested -- so no dangling task remains."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -1864,9 +1866,9 @@ class TestSupervisorTeardown:
         """Connect call count is frozen after teardown -- no reconnect is scheduled
         once teardown has begun, even though the loop would otherwise retry forever."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -1883,9 +1885,9 @@ class TestSupervisorTeardown:
     async def test_disconnect_is_idempotent_after_start(self):
         """Calling async_disconnect() twice after async_start() raises nothing."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -1897,9 +1899,9 @@ class TestSupervisorTeardown:
     async def test_disconnect_before_start_raises_nothing(self):
         """Calling async_disconnect() when async_start() was never invoked is a no-op."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_disconnect()  # must not raise -- no task, no paho client
 
@@ -1908,11 +1910,11 @@ class TestSupervisorTeardown:
         """Repeated start/disconnect cycles (simulating unload-then-setup) leave no
         growth in live asyncio tasks attributable to the client."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
 
         async def _one_cycle() -> None:
             fake_paho = _make_fake_paho()
-            client = _make_mqtt_client(hass, fake_paho)
+            client = _make_mqtt_client(loop_host, fake_paho)
             await client.async_start()
             await _settle()
             await client.async_disconnect()
@@ -1932,9 +1934,9 @@ class TestSupervisorTeardown:
         """Cancelling the supervisor task while it is suspended inside the (long,
         unpatched) renewal wait still tears down cleanly and promptly."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle(times=10)  # let it connect and settle into the (real, ~510s) wait
@@ -1975,9 +1977,9 @@ class TestSupervisorTeardown:
         the next time the top-of-loop condition is checked -- a stop flag is
         checked after every await, not only reachable via cancellation."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         async def _stop_after_connect() -> None:
             await _settle(times=10)
@@ -1999,7 +2001,7 @@ class TestSupervisorTeardown:
         cancelled task -- the explicit `except asyncio.CancelledError: raise`
         re-arms nothing and lets cancellation propagate."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         rainpoint_client = MagicMock()
 
         async def _hang_forever(*_args, **_kwargs):
@@ -2008,9 +2010,9 @@ class TestSupervisorTeardown:
         rainpoint_client.get_subscribe_status = AsyncMock(side_effect=_hang_forever)
         factory = MagicMock(return_value=_make_fake_paho())
         client = RainPointMqttClient(
-            hass.loop,
+            loop_host.loop,
             rainpoint_client,
-            executor_job=hass.async_add_executor_job,
+            executor_job=loop_host.async_add_executor_job,
             hub_device_name="hub-device",
             hub_product_key="hub-pk",
             paho_client_factory=factory,
@@ -2032,9 +2034,9 @@ class TestSupervisorTeardown:
         CancelledError during teardown, async_disconnect logs it rather than
         propagating (so a buggy task can never block unload)."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         async def _raises_on_cancel() -> None:
             try:
@@ -2056,9 +2058,9 @@ class TestSupervisorTeardown:
         """A paho loop_stop()/disconnect() raising during teardown is logged, not
         propagated -- async_disconnect must never block unload."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -2075,9 +2077,9 @@ class TestSupervisorTeardown:
     async def test_disconnect_paho_disconnects_before_stopping_loop(self):
         """paho's clean-shutdown order is disconnect() then loop_stop()."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         await client.async_start()
         await _settle()
@@ -2093,9 +2095,9 @@ class TestSupervisorTeardown:
         task's own cancellation, the CancelledError must propagate rather than be
         swallowed as the (expected) supervisor cancellation."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
 
         started = asyncio.Event()
         cancels = {"n": 0}
@@ -2137,15 +2139,15 @@ class TestConnectCredentialFields:
     callbacks, and records the final device_name/product_key, none of it
     silently nulled or swapped."""
 
-    def _client(self, hass, fake_paho, creds):
+    def _client(self, loop_host, fake_paho, creds):
         """Build a RainPointMqttClient wired to a fake rainpoint client returning the given credentials."""
         rainpoint_client = MagicMock()
         rainpoint_client.get_subscribe_status = AsyncMock(return_value=creds)
         factory = MagicMock(return_value=fake_paho)
         client = RainPointMqttClient(
-            hass.loop,
+            loop_host.loop,
             rainpoint_client,
-            executor_job=hass.async_add_executor_job,
+            executor_job=loop_host.async_add_executor_job,
             hub_device_name="hub-device",
             hub_product_key="hub-pk",
             paho_client_factory=factory,
@@ -2158,10 +2160,10 @@ class TestConnectCredentialFields:
     async def test_connect_wires_credentials_paho_client_and_final_state_exactly(self):
         """One end-to-end check of everything _connect derives from a real creds dict."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         creds = _fake_creds(device_name="dev-42", product_key="pk-42")
-        client, factory = self._client(hass, fake_paho, creds)
+        client, factory = self._client(loop_host, fake_paho, creds)
 
         await client.async_start()
         await _settle()
@@ -2193,9 +2195,9 @@ class TestConnectCredentialFields:
         """A response missing deviceName/productKey must not stringify a None
         into the wire username, "&" not "None&None"."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client, _factory = self._client(hass, fake_paho, creds={})
+        client, _factory = self._client(loop_host, fake_paho, creds={})
 
         await client.async_start()
         await _settle()
@@ -2210,10 +2212,10 @@ class TestConnectCredentialFields:
         """A missing deviceSecret must default to '' (encodable), not None,
         which has no .encode() and would raise before username_pw_set runs."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         creds = {"deviceName": "d", "productKey": "p"}  # no deviceSecret at all
-        client, _factory = self._client(hass, fake_paho, creds)
+        client, _factory = self._client(loop_host, fake_paho, creds)
 
         await client.async_start()
         await _settle()
@@ -2232,9 +2234,9 @@ class TestBrokerHostSelection:
     async def test_connect_uses_credential_host_and_ignores_advertised_plaintext_port(self):
         """mqttHostUrl "host:1883" yields that host but the TLS port, not 1883."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)  # _fake_creds carries mqttHostUrl :1883
+        client = _make_mqtt_client(loop_host, fake_paho)  # _fake_creds carries mqttHostUrl :1883
 
         await client.async_start()
         await _settle()
@@ -2253,11 +2255,11 @@ class TestBrokerHostSelection:
     async def test_connect_falls_back_to_template_host_when_url_absent(self):
         """No mqttHostUrl -> templated host + the TLS MQTT_BROKER_PORT."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         creds = _fake_creds()
         creds.pop("mqttHostUrl")
-        client = _make_mqtt_client(hass, fake_paho, creds=creds)
+        client = _make_mqtt_client(loop_host, fake_paho, creds=creds)
 
         await client.async_start()
         await _settle()
@@ -2272,11 +2274,11 @@ class TestBrokerHostSelection:
     async def test_connect_uses_bare_host_url_and_tls_port(self):
         """mqttHostUrl with a bare host (no port) -> that host + the TLS port."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
         creds = _fake_creds()
         creds["mqttHostUrl"] = "broker.example.com"
-        client = _make_mqtt_client(hass, fake_paho, creds=creds)
+        client = _make_mqtt_client(loop_host, fake_paho, creds=creds)
 
         await client.async_start()
         await _settle()
@@ -2295,14 +2297,14 @@ class TestTlsConnection:
     async def test_connect_calls_tls_set_with_pinned_ca_before_connecting(self):
         """tls_set(ca_certs=MQTT_TLS_CA_CERT) is invoked, and before connect()."""
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
 
         call_order = []
         fake_paho.tls_set.side_effect = lambda *a, **k: call_order.append("tls_set")
         fake_paho.connect.side_effect = lambda *a, **k: call_order.append("connect")
 
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 
@@ -2330,12 +2332,12 @@ class TestTlsConnection:
 
 class TestStateListeners:
     """State listeners fire on every connect/disconnect/message transition so the
-    push diagnostic entities can re-render (their live state is not in coordinator.data)."""
+    push diagnostic views can re-render (their live state is not in the polled data)."""
 
     def _make_offline_client(self):
         """A client with no running supervisor -- state handlers are driven directly."""
-        hass = MagicMock()
-        return _make_mqtt_client(hass, _make_fake_paho())
+        loop_host = MagicMock()
+        return _make_mqtt_client(loop_host, _make_fake_paho())
 
     def test_add_and_remove_state_listener(self):
         """A removed listener is no longer fired; remove is tolerant of an unknown listener."""
@@ -2409,13 +2411,12 @@ class TestPushDispatchNeverRunsOnPahoThread:
     """Every push into coordinator data is reached only after a hop onto the
     event loop, never on the network thread paho calls back on.
 
-    Two things rest on this. Home Assistant state may not be touched off the
-    loop at all. And the poll's own tail relies on it: coordinator.py's
-    _async_update_data suspends nowhere between its prior_connectivity hoist
-    and its return, which only keeps a concurrent push out of that window if a
-    push cannot run except as a loop callback. A dispatch that reached the
-    coordinator straight off paho's thread would interleave with that
-    synchronous tail whatever the coordinator's own tests say.
+    Two things rest on this. The caller's own state may not be touched off the
+    loop at all. And a caller may rely on no push arriving between two of its
+    awaits, which only holds if a push cannot run except as a loop callback. A
+    dispatch that reached the caller straight off paho's thread would
+    interleave with its synchronous sections whatever the caller's own tests
+    say.
 
     Read from source rather than driven, because the property is about which
     call paths exist, and a path that exists but was not exercised is exactly
@@ -2552,7 +2553,7 @@ class TestPushDispatchNeverRunsOnPahoThread:
 
         assert dispatching == [], (
             f"{dispatching} push into coordinator data while still on paho's network thread. "
-            "Every callback must hand off through hass.loop.call_soon_threadsafe first"
+            "Every callback must hand off through loop_host.loop.call_soon_threadsafe first"
         )
 
     def test_the_push_dispatch_is_reachable_once_the_hop_has_happened(self):
@@ -2649,8 +2650,8 @@ class TestTopicKindKeepsIdentifiersOutOfTheLog:
     """The downlink topic embeds a productKey and a deviceName.
 
     Both are addressing identifiers the house rule bars from these paths, and
-    the unrecognized-shape branch logs the topic at INFO, which reaches the
-    default Home Assistant log rather than only a debug session.
+    the unrecognized-shape branch logs the topic at INFO, which reaches a
+    consumer's default log rather than only a debug session.
     """
 
     def test_the_captured_topic_shape_loses_both_identifiers(self):
@@ -2720,15 +2721,15 @@ class TestTopicKindKeepsIdentifiersOutOfTheLog:
 
     @pytest.mark.asyncio
     async def test_the_info_announcement_carries_neither_identifier(self, caplog):
-        """The INFO branch is the one that reaches the default Home Assistant log.
+        """The INFO branch is the one that reaches a consumer's default log.
 
         Driven end to end rather than asserted on the helper, because this is the
         record a user pastes into an issue without ever enabling debug logging.
         """
         loop = asyncio.get_running_loop()
-        hass = _make_hass(loop)
+        loop_host = _make_loop_host(loop)
         fake_paho = _make_fake_paho()
-        client = _make_mqtt_client(hass, fake_paho)
+        client = _make_mqtt_client(loop_host, fake_paho)
         await client.async_start()
         await _settle()
 

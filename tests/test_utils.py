@@ -268,7 +268,7 @@ class TestValidRssiDbm:
     """A signal reading off these radios is negative, or it is not a reading.
 
     The guard sits where rssi_dbm is written rather than where it is read, so
-    the entity, the state attributes and the diagnostics dump all inherit it.
+    the reading, the state attributes and the diagnostics dump all inherit it.
     """
 
     @pytest.mark.parametrize("value", [-1, -37, -84, -120])
