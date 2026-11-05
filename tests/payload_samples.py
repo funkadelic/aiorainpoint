@@ -231,8 +231,8 @@ SYNTHETIC_MOISTURE_FULL_DATA = {
     "battery_percent": 80,
 }
 
-# Minimal synthetic TEMPHUM data dict. Keys match the field names read by the
-# six RainPointTempHum* classes in sensor.py.
+# Minimal synthetic TEMPHUM data dict. Keys match the field names callers read for
+# the six temperature and humidity readings.
 SYNTHETIC_TEMPHUM_DATA = {
     "type": "temphum",
     "tempcurrent": 21.5,
@@ -245,8 +245,8 @@ SYNTHETIC_TEMPHUM_DATA = {
     "battery_percent": 88,
 }
 
-# Minimal synthetic FLOWMETER data dict. Keys match the eight RainPointFlow*
-# classes in sensor.py. Flow battery is `flowbatt`, not `battery_percent`.
+# Minimal synthetic FLOWMETER data dict. Keys match the field names callers read for
+# the eight flow readings. Flow battery is `flowbatt`, not `battery_percent`.
 SYNTHETIC_FLOWMETER_DATA = {
     "type": "flowmeter",
     "flowrate": 6.4,

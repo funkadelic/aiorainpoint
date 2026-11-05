@@ -102,7 +102,7 @@ class RainPointClient:
     """The RainPoint cloud API client every read and write in this integration goes through.
 
     Holds the account credentials and the session token, refreshes the token on
-    demand, and exposes one method per cloud endpoint the integration uses.
+    demand, and exposes one method per cloud endpoint the client uses.
     """
 
     def __init__(self, area_code: str, email: str, password: str, session: aiohttp.ClientSession):
@@ -161,7 +161,7 @@ class RainPointClient:
         """Register a callback fired synchronously when a rejection expires the cached token.
 
         Its purpose is to let the caller persist the now-known-dead expiry, so
-        a later rebuild of the client (e.g. after a config entry reload) does
+        a later rebuild of the client (e.g. after a re-authentication) does
         not replay it. Does not fire when the rejection predicate declines to
         act.
         """
@@ -192,7 +192,7 @@ class RainPointClient:
                 self._token_expires_at = None
 
     def export_tokens(self) -> dict:
-        """Export token state; the keys are also the integration's CONF_TOKEN* config entry keys."""
+        """Export token state; callers that persist the tokens store them under these keys."""
         return {
             "token": self._token,
             "refresh_token": self._refresh_token,
@@ -490,7 +490,7 @@ class RainPointClient:
         paths use -- but the envelope is byte for byte what the hub check
         returns, confirmed against an HTV245FRF, an HCS026FRF and an HTV210B on
         2026-08-25. That is what lets both share the decode below and the one
-        entity base above them.
+        base class above them.
 
         Answered for all three of those models even though the RainPoint app
         offers a "check for updates" link on the HTV210B alone, so this is not
@@ -517,7 +517,7 @@ class RainPointClient:
                 raise RainPointApiError(f"{label} HTTP {resp.status}")
             data = await resp.json()
         # A non-object body would make every .get below raise AttributeError, and
-        # this method's caller treats an escaping exception as fatal to the entity
+        # this method's caller treats an escaping exception as fatal to the consumer
         # rather than to one poll, so it is turned into the error type that caller
         # already handles.
         if not isinstance(data, dict):

@@ -19,7 +19,7 @@ MODEL_RAIN = MODEL_HCS012ARF
 MODEL_TEMPHUM = MODEL_HCS014ARF
 MODEL_FLOWMETER = MODEL_HCS008FRF
 MODEL_CO2 = MODEL_HCS0530THO
-# Not a second model: sensor.py keys its entity factories off this name, but a
+# Not a second model: callers may key on this name, but a
 # registry keyed on both spellings holds one entry and silently drops the other.
 MODEL_POOL = MODEL_HCS0528ARF
 MODEL_POOL_PLUS = MODEL_HCS015ARF_PLUS
@@ -70,7 +70,7 @@ MODEL_VALVE_HUB = MODEL_HTV0540FRF
 # authoritative membership set behind is_hand_written_model() in api/trust.py:
 # any model here is structurally excluded from the model-agnostic generic
 # decode path. Defined here (not read from DECODER_REGISTRY directly) so the
-# api package stands alone; the integration's drift test keeps it in sync with
+# api package stands alone; a caller's drift test keeps it in sync with
 # the registry.
 HAND_WRITTEN_MODELS: frozenset[str] = frozenset(
     {

@@ -72,7 +72,7 @@ def _extract_battery_flag(b: bytes, *, dp_id_prefixed: bool = False) -> int | No
 #
 # 1 is the only value proven to mean a healthy cell, so it is the only one
 # this reads as normal, and an unobserved value must not become an affirmative
-# "not low" on an entity people build battery alerts against. 3 stays unmapped
+# "not low" on a reading people build battery alerts against. 3 stays unmapped
 # for the same reason: one HTV113FRF frame reports it and nothing says where it
 # sits on the scale.
 _BATTERY_FLAG_NOT_LOW = 1

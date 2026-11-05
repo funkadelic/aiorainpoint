@@ -153,7 +153,7 @@ def _read_catalog_bytes(path: Path) -> bytes | None:
 def _fingerprint_catalog(raw: bytes | None) -> str | None:
     """Return a short content hash of the catalog bytes, or None when there are none.
 
-    Identifies which snapshot produced a reading, which the integration
+    Identifies which snapshot produced a reading, which the consumer's
     version cannot: the catalog is refreshed by its own script and can change
     in a PR that ships no code, and a hand-edited or partially-refreshed file
     reads as the release it sits in.

@@ -1280,7 +1280,7 @@ class TestTokenManagement:
         assert client._refresh_token == "r"
         assert client._token_expires_at is None
 
-    def test_export_tokens_keys_match_config_entry_keys(self):
+    def test_export_tokens_keys_are_stable_for_callers_that_persist_them(self):
         """These keys are the contract a caller stores and hands back to restore_tokens."""
         assert set(_make_client().export_tokens()) == {"token", "refresh_token", "token_expires_at"}
 

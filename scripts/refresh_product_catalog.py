@@ -6,7 +6,7 @@ catalog at src/aiorainpoint/data/product_catalog.json and
 never fetches it from RainPoint at runtime. This script is the maintainer
 tool that keeps that snapshot up to date: it authenticates with a
 maintainer's own RainPoint credentials, pulls the live catalog, trims it
-down to the fields the integration actually uses, and either writes the
+down to the fields the client actually uses, and either writes the
 result to the committed file or diffs it against what is already committed.
 
 Usage:
@@ -49,7 +49,7 @@ _CATALOG_PATH = _REPO_ROOT / "src" / "aiorainpoint" / "data" / "product_catalog.
 # only bloat the committed file.
 #
 # The list is the failure mode as well as the feature: a family missing from it
-# never reaches the snapshot, and the integration then tells that device's
+# never reaches the snapshot, and the client then tells that device's
 # owner the model "is not in the product catalog", which reads as RainPoint not
 # describing it rather than as this filter dropping it. HTP was added on
 # 2026-09-09 after an HTP160FRF report; every run now reports what the filter

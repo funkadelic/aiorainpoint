@@ -2,7 +2,7 @@
 RainPoint API module.
 
 Re-exports the client, the per-model decoders, the catalog lookups and the
-helpers the integration uses, so callers import all of them from one place.
+helpers callers need, so they import all of them from one place.
 """
 
 from .client import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
