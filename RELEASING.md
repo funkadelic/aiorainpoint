@@ -6,7 +6,7 @@ Commits to `main` follow Conventional Commits. release-please keeps a release pu
 
 The `build` job then builds the sdist and the wheel, checks them, and runs the whole suite against the installed wheel. The `publish` job waits for approval in the `pypi` environment, then uploads through trusted publishing, with no token stored anywhere.
 
-After the upload, the `bump` job opens a draft pull request on `funkadelic/ha-rainpoint` titled `fix(deps): bump aiorainpoint to X.Y.Z`, from the branch `automated/aiorainpoint-bump`. It changes only the `aiorainpoint` pin in the integration's `manifest.json`. Merging it ships the new client in the integration's next release. The job waits until PyPI serves the version before it pushes, so the integration's checks never install a pin that is not there yet.
+After the upload, the `bump` job opens a draft pull request on `funkadelic/ha-rainpoint` titled `fix(deps): bump aiorainpoint to X.Y.Z`, from the branch `automated/aiorainpoint-bump`. It changes only the `aiorainpoint` pin in the integration's `manifest.json`. Merging it ships the new client in the integration's next release. The job waits until PyPI's package index lists the version before it pushes, so the integration's checks never install a pin that is not there yet.
 
 ## When the bump job does nothing
 

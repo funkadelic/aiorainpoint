@@ -127,7 +127,7 @@ jobs:
     needs: [release-please, publish]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions: {}
     # Queue rather than race, so two releases finishing together apply in order.
     concurrency:
@@ -193,10 +193,21 @@ jobs:
             echo "::notice::$VERSION is not newer than $floors, so nothing is pushed."
             exit 0
           fi
-          if ! curl -fsS --retry 10 --retry-delay 30 --retry-all-errors -o /dev/null "https://pypi.org/pypi/aiorainpoint/$VERSION/json"; then
-            echo "::error::PyPI does not serve aiorainpoint $VERSION yet. Re-run this job alone once it does."
+          # Installers read the simple index, which lags the JSON API, so wait on it.
+          listed=""
+          for _ in $(seq 20); do
+            if curl -fsS -H 'Accept: application/vnd.pypi.simple.v1+json' https://pypi.org/simple/aiorainpoint/ | jq -e --arg v "$VERSION" '.versions | index($v)' > /dev/null; then
+              listed=1
+              break
+            fi
+            sleep 30
+          done
+          if [ -z "$listed" ]; then
+            echo "::error::PyPI's index does not list aiorainpoint $VERSION yet. Re-run this job alone once it does."
             exit 1
           fi
+          # Settle for CDN edges that can still serve the old index for a few minutes.
+          sleep 180
           sed -i -E "s/\"aiorainpoint==[^\"]*\"/\"aiorainpoint==${VERSION}\"/" "$PIN_FILE"
           test "$(git diff --numstat)" = "$(printf '1\t1\t%s' "$PIN_FILE")" || { echo "::error::The pin rewrite changed more than the pin line in $PIN_FILE"; exit 1; }
           git config user.name "${APP_SLUG}[bot]"
