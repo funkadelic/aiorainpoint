@@ -193,7 +193,8 @@ jobs:
               m=re.fullmatch(r"(\d+)\.(\d+)\.(\d+)((?:a|b|rc)\d+)?",v)
               if not m: sys.exit(f"::error::Cannot compare {sys.argv[1]} with the pin {v}. Move the pin to X.Y.Z by hand.")
               return tuple(map(int,m.groups()[:3])),m[4] is None
-          print("yes" if all(k(sys.argv[1])>k(f) for f in sys.argv[2:]) else "no")' "$VERSION" $floors)"
+          v,*fs=map(k,sys.argv[1:])
+          print("yes" if all(v>f for f in fs) else "no")' "$VERSION" $floors)"
           if [ "$newer" != yes ]; then
             echo "::notice::$VERSION is not newer than $floors, so nothing is pushed."
             exit 0
