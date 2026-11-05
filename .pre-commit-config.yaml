@@ -36,4 +36,4 @@ repos:
         entry: pytest -q --no-cov
         language: system
         pass_filenames: false
-        types: [python]
+        always_run: true

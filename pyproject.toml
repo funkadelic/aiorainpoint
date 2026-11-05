@@ -22,7 +22,7 @@ Source = "https://github.com/funkadelic/aiorainpoint"
 packages = ["src/aiorainpoint"]
 
 [dependency-groups]
-# mutmut 4 may change the [tool.mutmut] format.
+# mutmut 4 may change the [tool.mutmut] format. Install requirements-test.txt alongside it.
 mutation = ["mutmut>=3.8.1,<4"]
 
 # Mutation testing, run by hand. --no-cov keeps the coverage gate from marking every mutant killed.
