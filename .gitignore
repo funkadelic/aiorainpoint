@@ -13,3 +13,4 @@ CLAUDE.md
 .claude/
 coverage.xml
 junit.xml
+mutants/

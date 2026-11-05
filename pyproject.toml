@@ -21,6 +21,27 @@ Source = "https://github.com/funkadelic/aiorainpoint"
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiorainpoint"]
 
+[dependency-groups]
+# mutmut 4 may change the [tool.mutmut] format.
+mutation = ["mutmut>=3.8.1,<4"]
+
+# Mutation testing, run by hand. --no-cov keeps the coverage gate from marking every mutant killed.
+[tool.mutmut]
+source_paths = ["src/aiorainpoint/"]
+also_copy = ["tests/", "scripts/", "pyproject.toml"]
+# Log calls test nothing but log text.
+do_not_mutate_patterns = ['_LOGGER\.']
+# A mutant that breaks a loop becomes a timeout, not a runaway.
+timeout_multiplier = 5.0
+on_dependency_change = "rerun"
+# These read the source files themselves, which mutmut rewrites.
+pytest_add_cli_args = [
+    "--no-cov",
+    "--deselect=tests/test_generic_decoder.py::TestAsciiFramingNonRegression::test_decoders_py_digest_is_pinned",
+    "--deselect=tests/test_mqtt.py::TestPushDispatchNeverRunsOnPahoThread",
+]
+pytest_add_cli_args_test_selection = ["tests/"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
