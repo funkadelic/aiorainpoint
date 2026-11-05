@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2](https://github.com/funkadelic/aiorainpoint/compare/v0.1.1...v0.1.2) (2026-11-05)
+
+
+### Other Changes
+
+* describe the client from the library's side ([#11](https://github.com/funkadelic/aiorainpoint/issues/11)) ([7a29db4](https://github.com/funkadelic/aiorainpoint/commit/7a29db43ebbfdbbbcb0d11e0c6abccbdc729f05c))
+* open a pin bump pull request on the integration after each release ([#10](https://github.com/funkadelic/aiorainpoint/issues/10)) ([60d0383](https://github.com/funkadelic/aiorainpoint/commit/60d038371f5bdfee20e567cbc27cd9f458f30d18))
+* update pytest-cov requirement from &gt;=7.0.0 to &gt;=7.1.0 ([#2](https://github.com/funkadelic/aiorainpoint/issues/2)) ([e9b4bb4](https://github.com/funkadelic/aiorainpoint/commit/e9b4bb4298d958e90683040a65cddcda60de9c91))
+
 ## [0.1.1](https://github.com/funkadelic/aiorainpoint/compare/v0.1.0...v0.1.1) (2026-11-04)
 
 
