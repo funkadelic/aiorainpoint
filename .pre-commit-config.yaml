@@ -2,6 +2,8 @@ ci:
   autofix_prs: true
   autoupdate_commit_msg: "chore: pre-commit autoupdate"
   autoupdate_schedule: monthly
+  # pre-commit.ci has no project install to test against; CI runs the suite.
+  skip: [pytest]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -26,3 +28,12 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest -q --no-cov
+        language: system
+        pass_filenames: false
+        always_run: true
