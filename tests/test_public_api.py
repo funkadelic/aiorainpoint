@@ -102,11 +102,13 @@ class TestPublicNames:
         assert [name for name in aiorainpoint.__all__ if name.startswith("_")] == []
 
     def test_no_public_name_leaks_outside_all(self):
-        """Every non-dunder name in the namespace is listed, so a private re-export fails too; submodules are exempt."""
+        """Every non-dunder name in the namespace is listed, so a private re-export fails too; only real submodules are exempt."""
         leaked = [
             name
             for name, value in vars(aiorainpoint).items()
-            if not name.startswith("__") and not inspect.ismodule(value) and name not in aiorainpoint.__all__
+            if not name.startswith("__")
+            and not (inspect.ismodule(value) and value.__name__ == f"aiorainpoint.{name}")
+            and name not in aiorainpoint.__all__
         ]
         assert leaked == []
 
