@@ -14,6 +14,7 @@ nothing in a caller's state or control path should consume them.
 
 import logging
 import re
+from collections.abc import Mapping
 from typing import cast
 
 from .product_catalog import get_catalog_entry, get_catalog_port_number
@@ -48,7 +49,7 @@ _ASCII_DECLINED_ERROR = "ASCII-framed payload: header read, body declined (field
 # and the STA_* names are RainPoint/HomGar's own identities. Only status (STA_*)
 # fields that surface in status frames are kept; provisioning dpCodes that
 # happen to share an index are ignored.
-STATUS_FIELDS: dict[int, str] = {
+STATUS_FIELDS: Mapping[int, str] = {
     0: "STA_CHG",
     1: "STA_RAIN",
     2: "STA_ALARM",
