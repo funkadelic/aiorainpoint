@@ -228,7 +228,7 @@ def _parse_rainpoint_payload(raw: str) -> bytes:
     # 10# is flat hex; 11# and 01# are the dp_id-prefixed record stream.
     if prefix in _KNOWN_PREFIXES:
         return bytes.fromhex(hex_data)
-    raise ValueError(f"Unknown payload prefix: {prefix}")
+    raise ValueError(f"Unknown payload prefix of {len(prefix)} characters")
 
 
 def _parse_tlv_payload(raw: str) -> dict:

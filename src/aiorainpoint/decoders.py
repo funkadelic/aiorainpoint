@@ -126,7 +126,7 @@ def decode_htv213frf_valve(raw: str) -> dict:
             raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
 
     except Exception as e:
-        _LOGGER.exception("HTV213FRF router error for payload %s", _RecordSummary(raw))
+        _LOGGER.exception("HTV213FRF router error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             "rssi_dbm": None,
@@ -136,6 +136,11 @@ def decode_htv213frf_valve(raw: str) -> dict:
             "decoder": "htv213frf_error",
             "error": str(e),
         }
+
+
+def _payload_length(raw: object) -> int:
+    """Length for an error log line, safe to call from a handler whatever the decoder was handed."""
+    return len(raw) if isinstance(raw, str) else 0
 
 
 def _ascii_int(token: str) -> int:
@@ -248,7 +253,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
         return result
 
     except Exception:
-        _LOGGER.exception("HTV213FRF ASCII decoder error for payload %s", _RecordSummary(raw))
+        _LOGGER.exception("HTV213FRF ASCII decoder error for a %d-character payload", _payload_length(raw))
         raise
 
 
@@ -357,7 +362,7 @@ def _decode_htv213frf_hex(raw: str) -> dict:
         return result
 
     except Exception:
-        _LOGGER.exception("HTV213FRF hex decoder error for payload %s", _RecordSummary(raw))
+        _LOGGER.exception("HTV213FRF hex decoder error for a %d-character payload", _payload_length(raw))
         raise
 
 
@@ -495,7 +500,7 @@ def decode_htv210b(raw: str) -> dict:
         _attach_report_time(result, b, dp_id_prefixed=True)
         return result
     except Exception as e:
-        _LOGGER.exception("HTV210B decoder error for payload %s", _RecordSummary(raw))
+        _LOGGER.exception("HTV210B decoder error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             # None, not 0: the RSSI sensor renders this value verbatim, and a
@@ -803,7 +808,7 @@ def decode_htv145frf(raw: str) -> dict:
         return result
 
     except Exception as e:
-        _LOGGER.exception("Single-outlet timer decoder error for payload %s", _RecordSummary(raw))
+        _LOGGER.exception("Single-outlet timer decoder error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             # None, not 0: the RSSI sensor renders this value verbatim, and a
@@ -1165,7 +1170,7 @@ def decode_hws019wrf_v2(raw: str) -> dict:
         _LOGGER.debug("decode_hws019wrf_v2 result: %s", _RecordSummary(result))
         return result
     except (ValueError, IndexError) as ex:
-        _LOGGER.exception("Failed to decode HWS019WRF-V2 payload %s", _RecordSummary(raw))
+        _LOGGER.exception("Failed to decode a %d-character HWS019WRF-V2 payload", _payload_length(raw))
         return {"type": "hws019wrf_v2", "raw": raw, "error": str(ex)}
 
 

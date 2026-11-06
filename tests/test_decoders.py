@@ -1,6 +1,5 @@
 """Tests for RainPoint device decoders."""
 
-import contextlib
 import logging
 import traceback
 
@@ -3194,6 +3193,7 @@ class TestPayloadsStayOutOfLogs:
         "11#DEADBEEFCAFEBABE",
         "11#DEADBEEF",
         "DEADBEEF",
+        "DEADBEEF#0011",
         "1,-84,1;DEADBEEF",
         "1,-84,1;DEADBEEF|1,0,0",
         "0,DEADBEEF,1;2,3",
@@ -3215,11 +3215,30 @@ class TestPayloadsStayOutOfLogs:
                 parts.append(formatter.formatException(record.exc_info))
         return "\n".join(parts)
 
+    def test_error_log_reports_the_payload_length(self, caplog):
+        """The length still tells a truncated frame from a wrong one."""
+        with caplog.at_level(logging.ERROR, logger="aiorainpoint"):
+            decode_htv213frf_valve("99#DEADBEEF")
+
+        assert "11-character payload" in caplog.text
+
+    def test_error_log_survives_a_non_string_payload(self, caplog):
+        """The handler runs because something was wrong, so it must not fail on the input too."""
+        with caplog.at_level(logging.ERROR, logger="aiorainpoint"):
+            result = decode_htv213frf_valve(None)
+
+        assert result["decoder"] == "htv213frf_error"
+        assert "0-character payload" in caplog.text
+
     @pytest.mark.parametrize("decoder", _exported_decoders())
     @pytest.mark.parametrize("payload", PAYLOADS)
     def test_decoder_logs_no_payload(self, decoder, payload, caplog):
         """Covers success and failure paths, because either can log what it was handed."""
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint"), contextlib.suppress(ValueError):
-            decoder(payload)
+        raised = ""
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint"):
+            try:
+                decoder(payload)
+            except ValueError as exc:
+                raised = str(exc)
 
-        assert self.MARKER not in self._everything_logged(caplog).upper()
+        assert self.MARKER not in (self._everything_logged(caplog) + raised).upper()
