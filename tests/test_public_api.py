@@ -139,3 +139,29 @@ class TestRemovedNames:
         for name, module in TRIMMED_HELPERS.items():
             assert not hasattr(aiorainpoint, name)
             assert hasattr(module, name)
+
+
+class TestDocstrings:
+    """Everything exported is documented."""
+
+    def test_exported_functions_and_classes_have_docstrings(self):
+        """Reads __doc__ directly, because the inspect helper walks the MRO and would pass a class on its parent's text."""
+        undocumented = []
+        for name in sorted(aiorainpoint.__all__):
+            obj = getattr(aiorainpoint, name)
+            if (inspect.isfunction(obj) or inspect.isclass(obj)) and not (obj.__doc__ or "").strip():
+                undocumented.append(name)
+        assert undocumented == []
+
+    def test_public_methods_of_exported_classes_have_docstrings(self):
+        """Walks vars(cls), not dir(cls), so inherited Exception methods stay out."""
+        undocumented = []
+        for name in sorted(aiorainpoint.__all__):
+            cls = getattr(aiorainpoint, name)
+            if not inspect.isclass(cls):
+                continue
+            for method_name, member in vars(cls).items():
+                is_method = inspect.isfunction(member) or isinstance(member, (staticmethod, classmethod, property))
+                if is_method and not method_name.startswith("_") and not (member.__doc__ or "").strip():
+                    undocumented.append(f"{name}.{method_name}")
+        assert undocumented == []

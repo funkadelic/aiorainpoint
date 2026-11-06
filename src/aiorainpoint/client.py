@@ -81,7 +81,7 @@ class RainPointError(Exception):
 
 
 class RainPointApiError(RainPointError):
-    pass
+    """A call failed at the API level, such as a non-200 status or a non-zero response code."""
 
 
 class RainPointThrottledError(RainPointApiError):
@@ -302,6 +302,7 @@ class RainPointClient:
         )
 
     async def ensure_logged_in(self) -> None:
+        """Log in unless the token is valid; raise RainPointThrottledError, with no network call, during a server cooldown."""
         if self._token_valid():
             return
         # Fast-fail without a network call while the server is throttling us.
@@ -403,6 +404,7 @@ class RainPointClient:
     # --- API calls ---
 
     async def list_homes(self) -> list[dict]:
+        """Return the account's homes as raw cloud records."""
         await self.ensure_logged_in()
         url = f"{self._base_url}/app/member/appHome/list"
         _LOGGER.debug("API call: list_homes URL=%s", url)
@@ -455,6 +457,7 @@ class RainPointClient:
         return payload
 
     async def get_devices_by_hid(self, hid: int) -> list[dict]:
+        """Return one home's hub records, each carrying its ``subDevices``; ``hid`` is the id list_homes reports."""
         await self.ensure_logged_in()
         url = f"{self._base_url}/app/device/getDeviceByHid"
         params = {"hid": hid}
