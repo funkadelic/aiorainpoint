@@ -37,11 +37,11 @@ from .utils import (
     valid_rssi_dbm,
 )
 from .validators import (
-    _extract_battery_flag,
-    _extract_rssi,
     _validate_payload,
     _validate_tag,
     battery_flag_to_percent,
+    extract_battery_flag,
+    extract_rssi,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -257,7 +257,7 @@ def _extract_dp_battery(b: bytes) -> tuple[int | None, int | None]:
     trailing STA_REPTIME record, whose four-byte value is the "timestamp:4"
     that same comment described.
     """
-    flag = _extract_battery_flag(b, dp_id_prefixed=True)
+    flag = extract_battery_flag(b, dp_id_prefixed=True)
     return flag, battery_flag_to_percent(flag)
 
 
@@ -971,7 +971,7 @@ def _decode_moisture_full_hex(raw: str) -> dict:
 
     _validate_tag(b, 5, 0x85, "HCS021FRF")
 
-    rssi = _extract_rssi(b)
+    rssi = extract_rssi(b)
     temp_raw_f10 = le16(b, 6)
     temp_c = f10_to_c(temp_raw_f10)
 
@@ -982,7 +982,7 @@ def _decode_moisture_full_hex(raw: str) -> dict:
     lux_raw10 = le16(b, 11)
     lux = lux_raw10 / 10.0
 
-    battery_flag = _extract_battery_flag(b)
+    battery_flag = extract_battery_flag(b)
 
     result = _base_decoder_dict("moisture_full", rssi, b)
     result.update(
@@ -1250,7 +1250,7 @@ def decode_valve_hub(raw: str) -> dict:
         )
 
         zones = _extract_valve_hub_zones(tlv)
-        battery_flag = _extract_battery_flag(b, dp_id_prefixed=True)
+        battery_flag = extract_battery_flag(b, dp_id_prefixed=True)
 
         result = {
             "type": "valve_hub",
@@ -1317,7 +1317,7 @@ def decode_rain(raw: str) -> dict:
     last_7d_raw10 = le16(b, 13)
     total_raw10 = le16(b, 18)
 
-    battery_flag = _extract_battery_flag(b)
+    battery_flag = extract_battery_flag(b)
 
     # Read structurally rather than assumed absent: this frame does carry a
     # STA_RSSI record, and the captured gauge's happens to hold the vendor's
@@ -1352,7 +1352,7 @@ _HCS044_RAIN_WET = 0x11
 def _extract_hcs044_rssi(b: bytes) -> int | None:
     """Return the signed dBm from the frame's STA_RSSI record, or None.
 
-    Located structurally: this frame leads with STA_BAT, so _extract_rssi's
+    Located structurally: this frame leads with STA_BAT, so extract_rssi's
     fixed b[1] would read the battery flag. A non-negative dBm is no reading.
     """
     value = _find_field_value(b, STA_RSSI_FIELD)
@@ -1385,7 +1385,7 @@ def decode_hcs044frf(raw: str) -> dict:
     and no capture pairs a non-zero alarm with a known device state.
     """
     b = _validate_payload(raw, 12)
-    battery_flag = _extract_battery_flag(b)
+    battery_flag = extract_battery_flag(b)
 
     result = _base_decoder_dict("rain_detector", _extract_hcs044_rssi(b), b)
     result.update(
@@ -1427,9 +1427,9 @@ def decode_moisture_simple(raw: str) -> dict:
     b = _validate_payload(raw, 9)
     _validate_tag(b, 5, 0x88, "HCS026FRF")
 
-    rssi = _extract_rssi(b)
+    rssi = extract_rssi(b)
     moisture = b[6]
-    battery_flag = _extract_battery_flag(b)
+    battery_flag = extract_battery_flag(b)
 
     result = _base_decoder_dict("moisture_simple", rssi, b)
     result.update(
@@ -1479,8 +1479,8 @@ def decode_flow_meter(raw: str) -> dict:
     # since a missing one already degrades to None rather than to a wrong value.
     b = _validate_payload(raw, 32)
 
-    result = _base_decoder_dict("flowmeter", _extract_rssi(b), b)
-    battery_flag = _extract_battery_flag(b)
+    result = _base_decoder_dict("flowmeter", extract_rssi(b), b)
+    battery_flag = extract_battery_flag(b)
     result.update(
         {
             "device_model": "HCS008FRF",
@@ -1523,7 +1523,7 @@ def decode_pool_plus(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
 
         # Basic CO2 parsing - can be enhanced with exact RainPoint logic later
         _LOGGER.debug("HCS0530THO basic parsing completed")
@@ -1548,7 +1548,7 @@ def decode_soil(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1571,7 +1571,7 @@ def decode_temp_hum(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1594,7 +1594,7 @@ def decode_temp_hum_full(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1617,7 +1617,7 @@ def decode_co2(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1640,7 +1640,7 @@ def decode_display(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1663,7 +1663,7 @@ def decode_unknown(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1687,7 +1687,7 @@ def decode_temphum(raw: str) -> dict:
     try:
         b = _parse_rainpoint_payload(raw)
         if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+            result["rssi"] = valid_rssi_dbm(extract_rssi(b))
             result["raw_bytes"] = b
 
     except Exception:
@@ -1728,7 +1728,7 @@ def decode_pool(raw: str) -> dict:
             temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
             if temp_f10 is not None:
                 result["tempcurrent"] = f10_to_c(temp_f10)
-            battery_flag = _extract_battery_flag(b)
+            battery_flag = extract_battery_flag(b)
             result["battery_flag"] = battery_flag
             result["battery_percent"] = battery_flag_to_percent(battery_flag)
             _attach_report_time(result, b)

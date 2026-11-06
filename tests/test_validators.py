@@ -3,12 +3,12 @@
 import pytest
 
 from aiorainpoint import (
-    _extract_battery_flag,
-    _extract_rssi,
     _validate_payload,
     _validate_tag,
     battery_flag_is_low,
     battery_flag_to_percent,
+    extract_battery_flag,
+    extract_rssi,
 )
 
 
@@ -67,57 +67,57 @@ class TestValidatePayload:
 
 
 class TestExtractRssi:
-    """Tests for _extract_rssi."""
+    """Tests for extract_rssi."""
 
     def test_negative_rssi(self):
         """High byte (>=128) produces negative signed value."""
         # b[1] = 0xAC = 172 -> 172 - 256 = -84
         b = bytes([0x00, 0xAC])
-        assert _extract_rssi(b) == -84
+        assert extract_rssi(b) == -84
 
     def test_positive_rssi(self):
         """Low byte (<128) returned as-is."""
         b = bytes([0x00, 0x50])
-        assert _extract_rssi(b) == 80
+        assert extract_rssi(b) == 80
 
     def test_zero_rssi(self):
         """Zero RSSI."""
         b = bytes([0x00, 0x00])
-        assert _extract_rssi(b) == 0
+        assert extract_rssi(b) == 0
 
     def test_boundary_127(self):
         """127 is the last positive value."""
         b = bytes([0x00, 0x7F])
-        assert _extract_rssi(b) == 127
+        assert extract_rssi(b) == 127
 
     def test_boundary_128(self):
         """128 wraps to negative: 128 - 256 = -128."""
         b = bytes([0x00, 0x80])
-        assert _extract_rssi(b) == -128
+        assert extract_rssi(b) == -128
 
 
 class TestExtractBatteryFlag:
-    """Tests for _extract_battery_flag."""
+    """Tests for extract_battery_flag."""
 
     def test_reads_sta_bat_record(self):
         """The byte following the 0xDC header is the flag."""
         b = bytes.fromhex("E1C600DC01881A")
-        assert _extract_battery_flag(b) == 1
+        assert extract_battery_flag(b) == 1
 
     def test_reads_non_normal_flag(self):
         """A flag other than 1 is returned as-is, not clamped."""
         b = bytes.fromhex("E1C600DC03881A")
-        assert _extract_battery_flag(b) == 3
+        assert extract_battery_flag(b) == 3
 
     def test_dp_id_prefixed_frame(self):
         """An 11# frame carries a dp_id ahead of every record header."""
         b = bytes.fromhex("17E1AE0018DC01")
-        assert _extract_battery_flag(b, dp_id_prefixed=True) == 1
+        assert extract_battery_flag(b, dp_id_prefixed=True) == 1
 
     def test_frame_without_sta_bat_returns_none(self):
         """No STA_BAT record means no reading, not a default."""
         b = bytes.fromhex("E1C600881A")
-        assert _extract_battery_flag(b) is None
+        assert extract_battery_flag(b) is None
 
     def test_dp_id_prefixed_flag_is_forwarded_not_defaulted(self):
         """dp_id_prefixed must reach the structural walk, not be silently dropped.
@@ -128,8 +128,8 @@ class TestExtractBatteryFlag:
         entirely.
         """
         b = bytes.fromhex("80DC01")
-        assert _extract_battery_flag(b, dp_id_prefixed=True) == 1
-        assert _extract_battery_flag(b, dp_id_prefixed=False) is None
+        assert extract_battery_flag(b, dp_id_prefixed=True) == 1
+        assert extract_battery_flag(b, dp_id_prefixed=False) is None
 
     def test_value_byte_equal_to_header_is_not_matched(self):
         """0xDC appearing inside another record's value is not read as STA_BAT.
@@ -138,7 +138,7 @@ class TestExtractBatteryFlag:
         byte would return the byte after it; the structural walk skips it.
         """
         b = bytes.fromhex("E1C60085DC0000")
-        assert _extract_battery_flag(b) is None
+        assert extract_battery_flag(b) is None
 
 
 class TestBatteryFlagToPercent:

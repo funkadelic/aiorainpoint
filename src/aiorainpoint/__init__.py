@@ -71,12 +71,12 @@ from .utils import (
     valid_rssi_dbm,
 )
 from .validators import (
-    _extract_battery_flag,
-    _extract_rssi,
     _validate_payload,
     _validate_tag,
     battery_flag_is_low,
     battery_flag_to_percent,
+    extract_battery_flag,
+    extract_rssi,
 )
 
 __all__ = [
@@ -91,8 +91,6 @@ __all__ = [
     "_RecordSummary",
     # Utils and decoder helpers
     "_base_decoder_dict",
-    "_extract_battery_flag",
-    "_extract_rssi",
     "_is_dp_id_framed",
     "_parse_rainpoint_payload",
     "_parse_tlv_payload",
@@ -135,7 +133,9 @@ __all__ = [
     "decode_unknown",
     "decode_valve_hub",
     "encode_dp_duration_param",
+    "extract_battery_flag",
     "extract_report_time",
+    "extract_rssi",
     "f10_to_c",
     "get_catalog_entry",
     "get_catalog_fingerprint",
