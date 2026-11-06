@@ -180,7 +180,7 @@ class TestDecodeGenericFraming:
         assert result["fields"] == []
 
     def test_unrecognised_index_names_itself_unknown(self):
-        """A structural index absent from _STATUS_FIELDS still gets a usable name.
+        """A structural index absent from STATUS_FIELDS still gets a usable name.
 
         Compact-form indices 3, 5, 6 and 7 have no STA_* identity in the
         catalog harvest; 0x30's index (3) is one of them.

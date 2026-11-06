@@ -1406,7 +1406,7 @@ class TestBasicDecoders:
 class TestBasicDecoderGuardBoundary:
     """Pin the '> 1' boundary on 'if b and len(b) > 1' precisely, decoder by decoder.
 
-    At len(b) == 1, _extract_rssi(b) reads b[1] and raises IndexError, which
+    At len(b) == 1, extract_rssi(b) reads b[1] and raises IndexError, which
     every one of these decoders catches and swallows, so weakening the guard
     to 'or' or '>= 1' still produces the same final dict at that length (rssi
     stays None either way) and is not worth a test. Only tightening the guard
@@ -1465,7 +1465,7 @@ class TestBasicDecoderGuardBoundary:
     def test_decode_pool_one_byte_buffer_skips_the_field_walk(self):
         """decode_pool reads via _find_field_int, which never raises on a short
         buffer, so its guard is fully observable at the 'and'/'>=1' boundary
-        too, unlike the _extract_rssi-based decoders above."""
+        too, unlike the extract_rssi-based decoders above."""
         result = decode_pool("10#AA")
         assert "raw_bytes" not in result
 

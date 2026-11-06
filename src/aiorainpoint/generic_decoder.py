@@ -48,7 +48,7 @@ _ASCII_DECLINED_ERROR = "ASCII-framed payload: header read, body declined (field
 # and the STA_* names are RainPoint/HomGar's own identities. Only status (STA_*)
 # fields that surface in status frames are kept; provisioning dpCodes that
 # happen to share an index are ignored.
-_STATUS_FIELDS: dict[int, str] = {
+STATUS_FIELDS: dict[int, str] = {
     0: "STA_CHG",
     1: "STA_RAIN",
     2: "STA_ALARM",
@@ -179,7 +179,7 @@ def _match_catalog_dp(dp_list: list, index: int) -> dict | None:
 
     The ``10#`` framing has no per-entry dp_id, so the structural field index
     is the only candidate key - the same numbering the STA_* names in
-    _STATUS_FIELDS were originally harvested from, and the numbering the
+    STATUS_FIELDS were originally harvested from, and the numbering the
     catalog's dpCode lines up with on both framings.
 
     dpCode is RainPoint's per-instance identifier and is therefore expected
@@ -429,7 +429,7 @@ def decode_generic(raw: str, model: str | None = None, model_code: int | str | N
         value_bytes = e["value_bytes"]
         fields.append(
             {
-                "name": _STATUS_FIELDS.get(index, f"UNKNOWN_{index}"),
+                "name": STATUS_FIELDS.get(index, f"UNKNOWN_{index}"),
                 "index": index,
                 "dp_id": e["dp_id"],
                 "raw": bytes(value_bytes).hex(),
