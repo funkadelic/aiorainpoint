@@ -47,9 +47,6 @@ EXPECTED_PUBLIC_NAMES = {
     "decode_unknown",
     "decode_valve_hub",
     "encode_dp_duration_param",
-    "extract_battery_flag",
-    "extract_report_time",
-    "extract_rssi",
     "f10_to_c",
     "get_catalog_entry",
     "get_catalog_fingerprint",
@@ -59,7 +56,6 @@ EXPECTED_PUBLIC_NAMES = {
     "is_ascii_declined",
     "is_ascii_payload",
     "is_hand_written_model",
-    "le16",
     "parse_entries",
     "parse_hub_broadcast_flag",
     "parse_sub_power_mode",
@@ -70,22 +66,19 @@ EXPECTED_PUBLIC_NAMES = {
     "valid_rssi_dbm",
 }
 
-RENAMED_HELPERS = {
-    "_le16": ("le16", utils_module),
-    "_extract_report_time": ("extract_report_time", utils_module),
-    "_extract_rssi": ("extract_rssi", validators_module),
-    "_extract_battery_flag": ("extract_battery_flag", validators_module),
-}
-
 TRIMMED_HELPERS = {
     "_RecordSummary": utils_module,
     "_base_decoder_dict": utils_module,
+    "_extract_report_time": utils_module,
     "_is_dp_id_framed": utils_module,
+    "_le16": utils_module,
     "_parse_rainpoint_payload": utils_module,
     "_parse_tlv_payload": utils_module,
     "_redact_identifier": utils_module,
     "_redact_secret": utils_module,
     "_safe_key": utils_module,
+    "_extract_battery_flag": validators_module,
+    "_extract_rssi": validators_module,
     "_validate_payload": validators_module,
     "_validate_tag": validators_module,
 }
@@ -120,13 +113,6 @@ class TestPublicNames:
 
 class TestRemovedNames:
     """Old names stay gone, which __all__ alone cannot show."""
-
-    def test_renamed_helpers_left_no_alias(self):
-        """The old name is gone from the package and the module, and the new one is the same object in both."""
-        for old_name, (new_name, module) in RENAMED_HELPERS.items():
-            assert not hasattr(aiorainpoint, old_name)
-            assert not hasattr(module, old_name)
-            assert getattr(aiorainpoint, new_name) is getattr(module, new_name)
 
     def test_status_fields_is_public_on_its_module_only(self):
         """STATUS_FIELDS lives on generic_decoder under its public name and stays off the package."""

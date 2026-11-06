@@ -6,9 +6,7 @@ import pytest
 
 from aiorainpoint import (
     encode_dp_duration_param,
-    extract_report_time,
     f10_to_c,
-    le16,
     parse_hub_broadcast_flag,
     parse_sub_power_mode,
     splice_hub_broadcast_param,
@@ -17,9 +15,11 @@ from aiorainpoint import (
 )
 from aiorainpoint.utils import (
     _base_decoder_dict,
+    _extract_report_time,
     _find_field_int,
     _find_field_value,
     _is_dp_id_framed,
+    _le16,
     _parse_ascii_rssi,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
@@ -230,19 +230,19 @@ class TestParseTlvPayload:
 
 
 class TestLe16:
-    """Tests for le16 helper."""
+    """Tests for _le16 helper."""
 
     def test_basic(self):
         """Basic."""
-        assert le16(b"\x05\x00", 0) == 5
+        assert _le16(b"\x05\x00", 0) == 5
 
     def test_with_offset(self):
         """With offset."""
-        assert le16(b"\x00\x00\xe8\x03", 2) == 1000
+        assert _le16(b"\x00\x00\xe8\x03", 2) == 1000
 
     def test_max_value(self):
         """Max value."""
-        assert le16(b"\xff\xff", 0) == 65535
+        assert _le16(b"\xff\xff", 0) == 65535
 
 
 class TestF10ToC:
@@ -325,24 +325,24 @@ class TestBaseDecoderDict:
 
 
 class TestExtractReportTime:
-    """Tests for extract_report_time and the packed wall-clock format."""
+    """Tests for _extract_report_time and the packed wall-clock format."""
 
     def test_reads_trailing_record(self):
         """The 4-byte STA_REPTIME value unpacks to a naive ISO wall clock."""
         b = bytes.fromhex("E1C400DC018825FF0FE1C4FA19")
-        assert extract_report_time(b) == ("2026-07-29T12:19:33", 0x19FAC4E1)
+        assert _extract_report_time(b) == ("2026-07-29T12:19:33", 0x19FAC4E1)
 
     def test_dp_id_prefixed_frame(self):
         """An 11# frame prefixes the record with a dp_id."""
         b = bytes.fromhex("17E1DB0018DC01FEFF0F0270F219")
-        iso, raw = extract_report_time(b, dp_id_prefixed=True)
+        iso, raw = _extract_report_time(b, dp_id_prefixed=True)
         assert iso == "2026-07-25T07:00:02"
         assert raw == 0x19F27002
 
     def test_frame_without_the_record_returns_none(self):
         """No STA_REPTIME record means no reading."""
         b = bytes.fromhex("E1C400DC018825")
-        assert extract_report_time(b) is None
+        assert _extract_report_time(b) is None
 
     def test_impossible_date_returns_none(self):
         """A word whose month field is zero is rejected, not clamped into range.
@@ -350,7 +350,7 @@ class TestExtractReportTime:
         A misaligned or truncated frame must not surface a fabricated date.
         """
         b = bytes.fromhex("E1C400FF0F00000000")
-        assert extract_report_time(b) is None
+        assert _extract_report_time(b) is None
 
 
 class TestIsAsciiPayload:

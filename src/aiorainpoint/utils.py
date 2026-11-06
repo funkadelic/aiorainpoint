@@ -642,7 +642,7 @@ def decode_packed_report_time(raw: int) -> str | None:
         return None
 
 
-def extract_report_time(b: bytes, *, dp_id_prefixed: bool = False) -> tuple[str, int] | None:
+def _extract_report_time(b: bytes, *, dp_id_prefixed: bool = False) -> tuple[str, int] | None:
     """Return (iso_wall_clock, raw_word) for the frame's STA_REPTIME, or None."""
     value_bytes = _find_field_value(b, STA_REPTIME_FIELD, dp_id_prefixed=dp_id_prefixed)
     if not value_bytes or len(value_bytes) != 4:
@@ -667,7 +667,7 @@ def encode_dp_duration_param(seconds: int) -> str:
     return clamped.to_bytes(4, "little").hex().upper()
 
 
-def le16(b: bytes, offset: int) -> int:
+def _le16(b: bytes, offset: int) -> int:
     """Extract little-endian 16-bit integer from bytes at offset."""
     return int.from_bytes(b[offset : offset + 2], "little")
 

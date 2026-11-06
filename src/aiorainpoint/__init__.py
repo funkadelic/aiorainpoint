@@ -49,10 +49,8 @@ from .trust import has_bluetooth_control_identity, is_hand_written_model
 from .utils import (
     decode_packed_report_time,
     encode_dp_duration_param,
-    extract_report_time,
     f10_to_c,
     is_ascii_payload,
-    le16,
     parse_entries,
     parse_hub_broadcast_flag,
     parse_sub_power_mode,
@@ -65,8 +63,6 @@ from .utils import (
 from .validators import (
     battery_flag_is_low,
     battery_flag_to_percent,
-    extract_battery_flag,
-    extract_rssi,
 )
 
 __all__ = [
@@ -113,9 +109,6 @@ __all__ = [
     "decode_unknown",
     "decode_valve_hub",
     "encode_dp_duration_param",
-    "extract_battery_flag",
-    "extract_report_time",
-    "extract_rssi",
     "f10_to_c",
     "get_catalog_entry",
     "get_catalog_fingerprint",
@@ -125,7 +118,6 @@ __all__ = [
     "is_ascii_declined",
     "is_ascii_payload",
     "is_hand_written_model",
-    "le16",
     "parse_entries",
     "parse_hub_broadcast_flag",
     "parse_sub_power_mode",

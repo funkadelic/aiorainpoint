@@ -41,13 +41,13 @@ def _validate_tag(b: bytes, offset: int, expected: int, device_name: str) -> Non
         raise ValueError(f"{device_name}: Expected tag 0x{expected:02X} at offset {offset}, got 0x{actual:02X}")
 
 
-def extract_rssi(b: bytes) -> int:
+def _extract_rssi(b: bytes) -> int:
     """Extract RSSI from payload bytes."""
     rssi_raw = b[1]
     return rssi_raw if rssi_raw < 128 else rssi_raw - 256
 
 
-def extract_battery_flag(b: bytes, *, dp_id_prefixed: bool = False) -> int | None:
+def _extract_battery_flag(b: bytes, *, dp_id_prefixed: bool = False) -> int | None:
     """Return the raw STA_BAT value of a frame, or None when it carries none.
 
     STA_BAT is a single byte located structurally, not by offset. The previous
