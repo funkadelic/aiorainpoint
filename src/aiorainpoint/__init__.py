@@ -66,18 +66,14 @@ from .validators import (
 )
 
 __all__ = [
-    # Decoder constants
     "SINGLE_OUTLET_GALLONS_PER_COUNT",
     "USAGE_GALLONS_PER_COUNT",
-    # Client
     "RainPointApiError",
     "RainPointClient",
     "RainPointError",
     "RainPointThrottledError",
-    # Utils and decoder helpers
     "battery_flag_is_low",
     "battery_flag_to_percent",
-    # Decoders
     "decode_co2",
     "decode_display",
     "decode_flow_meter",
