@@ -1993,21 +1993,31 @@ class TestMalformedSubscribeResponse:
         client._maybe_invalidate_token.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_success_with_non_object_data_raises(self):
-        """Callers read credentials off the result, so a non-object cannot be returned."""
+    @pytest.mark.parametrize("data", ["oops", "", [], 0, False])
+    async def test_success_with_non_object_data_raises(self, data):
+        """Callers read credentials off the result, so a non-object cannot be returned, falsy or not."""
         client = _make_client()
         client.ensure_logged_in = AsyncMock()
-        client._session.post = MagicMock(return_value=_mock_response({"code": 0, "data": "oops"}))
+        client._session.post = MagicMock(return_value=_mock_response({"code": 0, "data": data}))
 
-        with pytest.raises(RainPointApiError, match="subscribeStatus returned str data"):
+        with pytest.raises(RainPointApiError, match=f"subscribeStatus returned {type(data).__name__} data"):
             await client.get_subscribe_status("d", "p", 1, 2)
+
+    @pytest.mark.asyncio
+    async def test_success_with_null_data_returns_an_empty_object(self):
+        """Null stays the one shape read as an empty result."""
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.post = MagicMock(return_value=_mock_response({"code": 0, "data": None}))
+
+        assert await client.get_subscribe_status("d", "p", 1, 2) == {}
 
 
 class TestMalformedLoginResponse:
     """A successful code with an unusable body fails as a login failure, not a TypeError."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("data", [None, "oops", {}, {"token": ""}, {"token": None}])
+    @pytest.mark.parametrize("data", [None, "oops", {}, {"token": ""}, {"token": None}, {"token": 123}])
     async def test_unusable_data_raises_and_stores_nothing(self, data):
         """config_flow catches RainPointApiError, so nothing else may escape."""
         client = _make_client()
@@ -2020,6 +2030,28 @@ class TestMalformedLoginResponse:
 
         assert client._token == token_before
         assert client._token_expires_at == expiry_before
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"code": 0, "data": {"token": "new", "tokenExpired": "soon"}},
+            {"code": 0, "ts": "late", "data": {"token": "new", "tokenExpired": 60}},
+            {"code": 0, "data": {"token": "new", "tokenExpired": 10**20}},
+        ],
+    )
+    async def test_unusable_expiry_raises_and_stores_nothing(self, body):
+        """The expiry is worked out before any state changes, so a bad one leaves the old token in place."""
+        client = _make_client()
+        client._session.post = MagicMock(return_value=_mock_response(body))
+        token_before = client._token
+        cooldown_before = client._login_cooldown_until = datetime.now(UTC) - timedelta(seconds=1)
+
+        with pytest.raises(RainPointApiError, match="Login failed: unusable token expiry"):
+            await client._login()
+
+        assert client._token == token_before
+        assert client._login_cooldown_until == cooldown_before
 
     @pytest.mark.asyncio
     async def test_null_token_expiry_reads_as_zero(self):

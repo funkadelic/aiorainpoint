@@ -370,19 +370,27 @@ class RainPointClient:
                 f"Login rate-limited (code 9993); cooling down {_LOGIN_COOLDOWN_SECONDS}s", _LOGIN_COOLDOWN_SECONDS
             )
         d = data.get("data")
-        if code != 0 or not isinstance(d, dict) or not d.get("token"):
+        token = d.get("token") if isinstance(d, dict) else None
+        if code != 0 or not isinstance(token, str) or not token:
             _LOGGER.debug("Login failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"Login failed: code {code}")
+
+        # Worked out before any state changes, so a bad value leaves the old token in place.
+        token_expired_secs = d.get("tokenExpired") or 0
+        ts_server = data.get("ts")  # ms since epoch
+        try:
+            base = datetime.fromtimestamp(ts_server / 1000, tz=UTC) if ts_server else datetime.now(UTC)
+            token_expires_at = base + timedelta(seconds=token_expired_secs)
+        except (TypeError, ValueError, OverflowError, OSError) as exc:
+            _LOGGER.debug("Login failed response: %s", _RecordSummary(data))
+            raise RainPointApiError("Login failed: unusable token expiry") from exc
 
         # A clean login clears any prior throttle state.
         self._login_cooldown_until = None
 
-        self._token = d["token"]
+        self._token = token
         self._refresh_token = d.get("refreshToken")
-        token_expired_secs = d.get("tokenExpired") or 0
-        ts_server = data.get("ts")  # ms since epoch
-        base = datetime.fromtimestamp(ts_server / 1000, tz=UTC) if ts_server else datetime.now(UTC)
-        self._token_expires_at = base + timedelta(seconds=token_expired_secs)
+        self._token_expires_at = token_expires_at
 
         _LOGGER.info("RainPoint login successful; token expires in %s seconds", token_expired_secs)
 
@@ -623,7 +631,9 @@ class RainPointClient:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("subscribeStatus failed response: code=%s", data.get("code"))
             raise RainPointApiError(f"subscribeStatus failed: code {data.get('code')}")
-        resp_data = data.get("data") or {}
+        resp_data = data.get("data")
+        if resp_data is None:
+            resp_data = {}
         if not isinstance(resp_data, dict):
             raise RainPointApiError(f"subscribeStatus returned {type(resp_data).__name__} data, not an object")
         # The response carries deviceSecret, so log only the key set -- never the
