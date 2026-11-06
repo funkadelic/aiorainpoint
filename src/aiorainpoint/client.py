@@ -418,7 +418,7 @@ class RainPointClient:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("list_homes failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"list_homes failed: code {data.get('code')}")
-        return data.get("data", [])
+        return data.get("data") or []
 
     async def get_product_catalog(self) -> list[dict]:
         """Fetch RainPoint's full productModel catalog as a list of model entries.
@@ -472,7 +472,7 @@ class RainPointClient:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("getDeviceByHid failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"getDeviceByHid failed: code {data.get('code')}")
-        return data.get("data", [])
+        return data.get("data") or []
 
     async def get_hub_firmware_info(self, mid: int) -> dict:
         """Return one hub's firmware check result: {"info": ..., "softVer": ...}.
