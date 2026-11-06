@@ -420,7 +420,7 @@ def decode_generic(raw: str, model: str | None = None, model_code: int | str | N
         data = _hex_to_bytes(body)
         entries = parse_entries(data, dp_id_prefixed)
     except Exception as exc:  # diagnostics must not break polling
-        _LOGGER.debug("decode_generic failed for %r: %s", raw, exc)
+        _LOGGER.debug("decode_generic failed for a %d-char payload: %s", len(raw), type(exc).__name__)
         result["error"] = str(exc)
         return result
 
