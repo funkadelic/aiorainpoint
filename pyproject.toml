@@ -39,6 +39,9 @@ pytest_add_cli_args = [
     "--no-cov",
     "--deselect=tests/test_generic_decoder.py::TestAsciiFramingNonRegression::test_decoders_py_digest_is_pinned",
     "--deselect=tests/test_mqtt.py::TestPushDispatchNeverRunsOnPahoThread",
+    # These inspect the package and class namespaces, which mutmut adds its own names to.
+    "--deselect=tests/test_public_api.py::TestPublicNames::test_no_public_name_leaks_outside_all",
+    "--deselect=tests/test_public_api.py::TestDocstrings::test_public_methods_of_exported_classes_have_docstrings",
 ]
 pytest_add_cli_args_test_selection = ["tests/"]
 

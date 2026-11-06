@@ -81,7 +81,7 @@ class RainPointError(Exception):
 
 
 class RainPointApiError(RainPointError):
-    pass
+    """A call failed at the API level, such as a non-200 status or a non-zero response code."""
 
 
 class RainPointThrottledError(RainPointApiError):
@@ -302,6 +302,7 @@ class RainPointClient:
         )
 
     async def ensure_logged_in(self) -> None:
+        """Log in unless the token is valid; raise RainPointThrottledError, with no network call, during a server cooldown."""
         if self._token_valid():
             return
         # Fast-fail without a network call while the server is throttling us.
@@ -411,6 +412,7 @@ class RainPointClient:
     # --- API calls ---
 
     async def list_homes(self) -> list[dict]:
+        """Return the account's homes as raw cloud records."""
         await self.ensure_logged_in()
         url = f"{self._base_url}/app/member/appHome/list"
         _LOGGER.debug("API call: list_homes URL=%s", url)
@@ -424,7 +426,7 @@ class RainPointClient:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("list_homes failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"list_homes failed: code {data.get('code')}")
-        return data.get("data", [])
+        return data.get("data") or []
 
     async def get_product_catalog(self) -> list[dict]:
         """Fetch RainPoint's full productModel catalog as a list of model entries.
@@ -463,6 +465,7 @@ class RainPointClient:
         return payload
 
     async def get_devices_by_hid(self, hid: int) -> list[dict]:
+        """Return one home's hub records, each carrying its ``subDevices``; ``hid`` is the id list_homes reports."""
         await self.ensure_logged_in()
         url = f"{self._base_url}/app/device/getDeviceByHid"
         params = {"hid": hid}
@@ -477,7 +480,7 @@ class RainPointClient:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("getDeviceByHid failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"getDeviceByHid failed: code {data.get('code')}")
-        return data.get("data", [])
+        return data.get("data") or []
 
     async def get_hub_firmware_info(self, mid: int) -> dict:
         """Return one hub's firmware check result: {"info": ..., "softVer": ...}.

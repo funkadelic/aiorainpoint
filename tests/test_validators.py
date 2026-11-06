@@ -2,14 +2,8 @@
 
 import pytest
 
-from aiorainpoint import (
-    _extract_battery_flag,
-    _extract_rssi,
-    _validate_payload,
-    _validate_tag,
-    battery_flag_is_low,
-    battery_flag_to_percent,
-)
+from aiorainpoint import battery_flag_is_low, battery_flag_to_percent
+from aiorainpoint.validators import _extract_battery_flag, _extract_rssi, _validate_payload, _validate_tag
 
 
 class TestValidatePayload:

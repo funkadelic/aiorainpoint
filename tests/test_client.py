@@ -3770,3 +3770,17 @@ class TestCloudResponsesAreSummarisedNotDumped:
 
         assert "MAC-A0B0C0D00003" not in caplog.text
         assert "getDeviceByHid failed response" in caplog.text
+
+
+class TestNullDataListResponses:
+    """A null data field reads as an empty list, matching the declared return type."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("method", "args"), [("list_homes", ()), ("get_devices_by_hid", (42,))])
+    async def test_null_data_returns_empty_list(self, method, args):
+        """Covers both list endpoints, which the integration takes the length of."""
+        client = _make_client()
+        client.ensure_logged_in = AsyncMock()
+        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": None}))
+
+        assert await getattr(client, method)(*args) == []
