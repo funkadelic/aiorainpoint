@@ -45,7 +45,7 @@ mypy                # type-check
 
 To run the same hooks on every commit, install [pre-commit](https://pre-commit.com/) and run `pre-commit install`. The hooks include the test suite, so commit with the venv active and the package reinstalled.
 
-CI runs `ruff`, `mypy` and the suite on every PR. The suite runs on Python 3.14, at the oldest supported versions of `aiohttp` and `paho-mqtt`, and against the built wheel. A separate job checks that the dependencies still resolve against Home Assistant's constraints. pre-commit.ci runs the hygiene hooks and pushes any fixes to the branch. Coverage goes to Codecov, and SonarCloud scans each PR.
+CI runs `ruff`, `mypy` and the suite on every PR. The suite runs on Python 3.14, at the oldest supported versions of `aiohttp` and `paho-mqtt`, and against the built wheel. A separate job checks that the dependencies still resolve against Home Assistant's constraints. pre-commit.ci runs the hygiene hooks and pushes any fixes to the branch. Coverage goes to Codecov, and SonarCloud scans PRs that change source or test files.
 
 Every action in `.github/workflows/` is pinned to a full commit SHA with the version in a trailing comment, e.g. `uses: actions/checkout@3d3c42e... # v7.0.1`. A tag can be repointed at new code without review, so a new `uses:` line needs a SHA rather than `@v4`. Dependabot reads the trailing comment and bumps both parts together.
 
@@ -63,7 +63,7 @@ Scope a run to the module you're working on. `mutants/` is the working copy mutm
 Pass `--max-children` with a number below your core count, because the default of one worker per core can saturate the machine. Some mutants also break a loop so it never ends, and that worker grows until mutmut's timeout stops it. On Linux or WSL with systemd, this keeps a runaway worker from taking the session down with it:
 
 ```bash
-systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4
+systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4 'aiorainpoint.utils.*'
 ```
 
 A surviving mutant names a change to the source that no test objects to. Sometimes that means a missing assertion, and sometimes the line doesn't matter.
@@ -82,14 +82,17 @@ Debug logs get pasted into public issues, so log lines on cloud-record paths car
 
 Log anything else from a cloud record through `utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `utils._RecordSummary`, which does that work only when a handler formats the line.
 
+Some older log calls in `decoders.py` predate this rule and still log raw payloads, so don't copy them.
+
 ## Adding a new device model
 
 Model constants and decoders live here, so a new model starts in this repo and finishes in ha-rainpoint.
 
 1. Add `MODEL_XXX = "XXX"` to `models.py`, and add the model to `HAND_WRITTEN_MODELS`.
 2. Write `decode_xxx(raw: str) -> dict` in `decoders.py`, with a docstring. Return at least `type`, `rssi_dbm` and `raw_bytes`, plus any device-specific fields. Use `_parse_rainpoint_payload` and `_parse_tlv_payload` from `utils.py`.
-3. Export it: add `decode_xxx` to `__init__.py` and to `EXPECTED_PUBLIC_NAMES`.
-4. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
+3. Add tests to `tests/test_decoders.py` that cover every branch of the decoder, with sample payloads in `tests/payload_samples.py`.
+4. Export it: add `decode_xxx` to `__init__.py` and to `EXPECTED_PUBLIC_NAMES`.
+5. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
 
 After the release, the integration side is in ha-rainpoint's [CONTRIBUTING.md](https://github.com/funkadelic/ha-rainpoint/blob/main/CONTRIBUTING.md).
 
