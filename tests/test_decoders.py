@@ -9,7 +9,6 @@ import aiorainpoint
 from aiorainpoint import (
     SINGLE_OUTLET_GALLONS_PER_COUNT,
     decode_co2,
-    decode_display,
     decode_flow_meter,
     decode_flowmeter,
     decode_generic,
@@ -27,9 +26,6 @@ from aiorainpoint import (
     decode_pool,
     decode_pool_plus,
     decode_rain,
-    decode_soil,
-    decode_temp_hum,
-    decode_temp_hum_full,
     decode_temphum,
     decode_unknown,
     decode_valve_hub,
@@ -1347,42 +1343,10 @@ class TestBasicDecoders:
         assert result["temperature_c"] is None
         assert result["humidity_percent"] is None
 
-    def test_decode_soil(self):
-        """Decode soil."""
-        result = decode_soil(BASIC_HEX_PAYLOAD)
-        assert result["type"] == "soil"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
-        assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
-
-    def test_decode_temp_hum(self):
-        """Decode temp hum."""
-        result = decode_temp_hum(BASIC_HEX_PAYLOAD)
-        assert result["type"] == "temphum"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
-        assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
-
-    def test_decode_temp_hum_full(self):
-        """Decode temp hum full."""
-        result = decode_temp_hum_full(BASIC_HEX_PAYLOAD)
-        assert result["type"] == "temphum_full"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
-        assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
-
     def test_decode_co2(self):
         """Decode co2."""
         result = decode_co2(BASIC_HEX_PAYLOAD)
         assert result["type"] == "co2"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
-        assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
-
-    def test_decode_display(self):
-        """Decode display."""
-        result = decode_display(BASIC_HEX_PAYLOAD)
-        assert result["type"] == "display"
         assert result["rssi"] is not None
         assert result["decoder"] == "basic"
         assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
@@ -1415,33 +1379,9 @@ class TestBasicDecoderGuardBoundary:
     exception to mask the difference.
     """
 
-    def test_decode_soil_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_soil takes the rssi branch and sets a real value."""
-        result = decode_soil("10#E1B0")
-        assert result["rssi"] is not None
-        assert result["raw_bytes"] == bytes.fromhex("E1B0")
-
-    def test_decode_temp_hum_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_temp_hum takes the rssi branch and sets a real value."""
-        result = decode_temp_hum("10#E1B0")
-        assert result["rssi"] is not None
-        assert result["raw_bytes"] == bytes.fromhex("E1B0")
-
-    def test_decode_temp_hum_full_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_temp_hum_full takes the rssi branch and sets a real value."""
-        result = decode_temp_hum_full("10#E1B0")
-        assert result["rssi"] is not None
-        assert result["raw_bytes"] == bytes.fromhex("E1B0")
-
     def test_decode_co2_two_byte_buffer_enters_the_rssi_branch(self):
         """At exactly two bytes, decode_co2 takes the rssi branch and sets a real value."""
         result = decode_co2("10#E1B0")
-        assert result["rssi"] is not None
-        assert result["raw_bytes"] == bytes.fromhex("E1B0")
-
-    def test_decode_display_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_display takes the rssi branch and sets a real value."""
-        result = decode_display("10#E1B0")
         assert result["rssi"] is not None
         assert result["raw_bytes"] == bytes.fromhex("E1B0")
 
@@ -1934,34 +1874,10 @@ class TestBasicDecoderShortBufferBranches:
         assert result["type"] == "co2"
         assert result["rssi"] is None
 
-    def test_decode_soil_short_buffer_leaves_rssi_none(self):
-        """1-byte buffer (len==1) still fails the >1 guard."""
-        result = decode_soil("10#aa")
-        assert result["type"] == "soil"
-        assert result["rssi"] is None
-
-    def test_decode_temp_hum_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch."""
-        result = decode_temp_hum("10#")
-        assert result["type"] == "temphum"
-        assert result["rssi"] is None
-
-    def test_decode_temp_hum_full_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch."""
-        result = decode_temp_hum_full("10#")
-        assert result["type"] == "temphum_full"
-        assert result["rssi"] is None
-
     def test_decode_co2_short_buffer_leaves_rssi_none(self):
         """0-byte buffer skips the rssi branch."""
         result = decode_co2("10#")
         assert result["type"] == "co2"
-        assert result["rssi"] is None
-
-    def test_decode_display_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch."""
-        result = decode_display("10#")
-        assert result["type"] == "display"
         assert result["rssi"] is None
 
     def test_decode_temphum_short_buffer_leaves_rssi_none(self):
@@ -1999,34 +1915,10 @@ class TestBasicDecoderLogAndSwallowBranches:
         assert result["type"] == "co2"
         assert result["rssi"] is None
 
-    def test_decode_soil_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_soil("garbage_no_separator")
-        assert result["type"] == "soil"
-        assert result["rssi"] is None
-
-    def test_decode_temp_hum_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_temp_hum("garbage_no_separator")
-        assert result["type"] == "temphum"
-        assert result["rssi"] is None
-
-    def test_decode_temp_hum_full_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_temp_hum_full("garbage_no_separator")
-        assert result["type"] == "temphum_full"
-        assert result["rssi"] is None
-
     def test_decode_co2_swallows_parse_error(self):
         """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
         result = decode_co2("garbage_no_separator")
         assert result["type"] == "co2"
-        assert result["rssi"] is None
-
-    def test_decode_display_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_display("garbage_no_separator")
-        assert result["type"] == "display"
         assert result["rssi"] is None
 
     def test_decode_temphum_swallows_parse_error(self):

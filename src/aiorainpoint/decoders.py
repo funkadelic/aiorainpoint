@@ -1533,75 +1533,6 @@ def decode_pool_plus(raw: str) -> dict:
     return result
 
 
-def decode_soil(raw: str) -> dict:
-    """Decode soil sensor."""
-
-    _LOGGER.debug("Decoding soil sensor")
-
-    result: dict[str, Any] = {
-        "type": "soil",
-        "rssi": None,
-        "decoder": "basic",
-    }
-
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
-
-    except Exception:
-        _LOGGER.exception("Error in soil decoder")
-
-    return result
-
-
-def decode_temp_hum(raw: str) -> dict:
-    """Decode temperature/humidity sensor."""
-
-    _LOGGER.debug("Decoding temp/hum sensor")
-
-    result: dict[str, Any] = {
-        "type": "temphum",
-        "rssi": None,
-        "decoder": "basic",
-    }
-
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
-
-    except Exception:
-        _LOGGER.exception("Error in temp/hum decoder")
-
-    return result
-
-
-def decode_temp_hum_full(raw: str) -> dict:
-    """Decode full temperature/humidity sensor."""
-
-    _LOGGER.debug("Decoding full temp/hum sensor")
-
-    result: dict[str, Any] = {
-        "type": "temphum_full",
-        "rssi": None,
-        "decoder": "basic",
-    }
-
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
-
-    except Exception:
-        _LOGGER.exception("Error in full temp/hum decoder")
-
-    return result
-
-
 def decode_co2(raw: str) -> dict:
     """Decode CO2 sensor."""
 
@@ -1621,29 +1552,6 @@ def decode_co2(raw: str) -> dict:
 
     except Exception:
         _LOGGER.exception("Error in CO2 decoder")
-
-    return result
-
-
-def decode_display(raw: str) -> dict:
-    """Decode display sensor."""
-
-    _LOGGER.debug("Decoding display sensor")
-
-    result: dict[str, Any] = {
-        "type": "display",
-        "rssi": None,
-        "decoder": "basic",
-    }
-
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
-
-    except Exception:
-        _LOGGER.exception("Error in display decoder")
 
     return result
 
