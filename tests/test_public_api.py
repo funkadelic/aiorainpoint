@@ -2,6 +2,8 @@
 
 import inspect
 
+import pytest
+
 import aiorainpoint
 import aiorainpoint.generic_decoder as generic_decoder_module
 import aiorainpoint.utils as utils_module
@@ -121,6 +123,11 @@ class TestRemovedNames:
         assert not hasattr(generic_decoder_module, "_STATUS_FIELDS")
         assert generic_decoder_module.STATUS_FIELDS
         assert not hasattr(aiorainpoint, "STATUS_FIELDS")
+
+    def test_status_fields_rejects_writes(self):
+        """The Mapping annotation only stops type checkers, so the object has to refuse too."""
+        with pytest.raises(TypeError):
+            generic_decoder_module.STATUS_FIELDS[0] = "changed"
 
     def test_trimmed_helpers_stay_private_in_their_modules(self):
         """A trimmed helper leaves the package but stays on its defining module."""

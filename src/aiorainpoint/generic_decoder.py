@@ -15,6 +15,7 @@ nothing in a caller's state or control path should consume them.
 import logging
 import re
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import cast
 
 from .product_catalog import get_catalog_entry, get_catalog_port_number
@@ -49,48 +50,50 @@ _ASCII_DECLINED_ERROR = "ASCII-framed payload: header read, body declined (field
 # and the STA_* names are RainPoint/HomGar's own identities. Only status (STA_*)
 # fields that surface in status frames are kept; provisioning dpCodes that
 # happen to share an index are ignored.
-STATUS_FIELDS: Mapping[int, str] = {
-    0: "STA_CHG",
-    1: "STA_RAIN",
-    2: "STA_ALARM",
-    4: "STA_OTHER",
-    9: "STA_TEM",
-    10: "STA_RH",
-    13: "STA_TOTAL_RAIN",
-    14: "STA_VFLOW",
-    15: "STA_LASTUSAGE",
-    17: "STA_POWER",
-    18: "STA_ENERGY",
-    19: "STA_DURATION",
-    20: "STA_WATER_TOTAL",
-    21: "STA_EVTIME",
-    22: "STA_TREND",
-    25: "STA_ILLUMINANCE",
-    26: "STA_TOTAL_TODAY",
-    27: "STA_CO2",
-    30: "STA_WKSTATE",
-    31: "STA_BAT",
-    32: "STA_RSSI",
-    33: "STA_WATER_ZONES1",
-    34: "STA_WATER_ZONES2",
-    35: "STA_WATER_ZONES3",
-    36: "STA_WATER_ZONES4",
-    37: "STA_WATER_ZONES",
-    38: "STA_TS_DET",
-    43: "STA_HOUR_RAIN",
-    44: "STA_DAY_RAIN",
-    45: "STA_7DAY_RAIN",
-    46: "STA_CUR_FLOW",
-    47: "STA_MAX_CO2",
-    49: "STA_LAST_DURATION",
-    50: "STA_OTHER_TOTAL",
-    51: "STA_RSSI2",
-    52: "STA_EVTIME2",
-    54: "STA_REPTIME",
-    55: "STA_LIGHT_LEVEL",
-    58: "STA_ALARM_EX",
-    60: "STA_OTHER_TOTAL2",
-}
+STATUS_FIELDS: Mapping[int, str] = MappingProxyType(
+    {
+        0: "STA_CHG",
+        1: "STA_RAIN",
+        2: "STA_ALARM",
+        4: "STA_OTHER",
+        9: "STA_TEM",
+        10: "STA_RH",
+        13: "STA_TOTAL_RAIN",
+        14: "STA_VFLOW",
+        15: "STA_LASTUSAGE",
+        17: "STA_POWER",
+        18: "STA_ENERGY",
+        19: "STA_DURATION",
+        20: "STA_WATER_TOTAL",
+        21: "STA_EVTIME",
+        22: "STA_TREND",
+        25: "STA_ILLUMINANCE",
+        26: "STA_TOTAL_TODAY",
+        27: "STA_CO2",
+        30: "STA_WKSTATE",
+        31: "STA_BAT",
+        32: "STA_RSSI",
+        33: "STA_WATER_ZONES1",
+        34: "STA_WATER_ZONES2",
+        35: "STA_WATER_ZONES3",
+        36: "STA_WATER_ZONES4",
+        37: "STA_WATER_ZONES",
+        38: "STA_TS_DET",
+        43: "STA_HOUR_RAIN",
+        44: "STA_DAY_RAIN",
+        45: "STA_7DAY_RAIN",
+        46: "STA_CUR_FLOW",
+        47: "STA_MAX_CO2",
+        49: "STA_LAST_DURATION",
+        50: "STA_OTHER_TOTAL",
+        51: "STA_RSSI2",
+        52: "STA_EVTIME2",
+        54: "STA_REPTIME",
+        55: "STA_LIGHT_LEVEL",
+        58: "STA_ALARM_EX",
+        60: "STA_OTHER_TOTAL2",
+    }
+)
 
 # Every multi-byte value in these framings is little-endian. This used to
 # single out STA_DURATION (field index 19), the one multi-byte field a
