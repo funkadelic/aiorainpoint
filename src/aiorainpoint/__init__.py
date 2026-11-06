@@ -48,7 +48,6 @@ from .product_catalog import (
 from .trust import has_bluetooth_control_identity, is_hand_written_model
 from .utils import (
     _base_decoder_dict,
-    _extract_report_time,
     _is_dp_id_framed,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
@@ -58,6 +57,7 @@ from .utils import (
     _safe_key,
     decode_packed_report_time,
     encode_dp_duration_param,
+    extract_report_time,
     f10_to_c,
     is_ascii_payload,
     le16,
@@ -92,7 +92,6 @@ __all__ = [
     # Utils and decoder helpers
     "_base_decoder_dict",
     "_extract_battery_flag",
-    "_extract_report_time",
     "_extract_rssi",
     "_is_dp_id_framed",
     "_parse_rainpoint_payload",
@@ -136,6 +135,7 @@ __all__ = [
     "decode_unknown",
     "decode_valve_hub",
     "encode_dp_duration_param",
+    "extract_report_time",
     "f10_to_c",
     "get_catalog_entry",
     "get_catalog_fingerprint",

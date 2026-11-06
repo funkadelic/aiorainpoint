@@ -25,12 +25,12 @@ from .utils import (
     STA_WATER_TOTAL_FIELD,
     STA_WKSTATE_FIELD,
     _base_decoder_dict,
-    _extract_report_time,
     _find_field_int,
     _find_field_value,
     _is_dp_id_framed,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
+    extract_report_time,
     f10_to_c,
     le16,
     parse_entries,
@@ -54,7 +54,7 @@ def _attach_report_time(result: dict, b: bytes, *, dp_id_prefixed: bool = False)
     impossible date, so a consumer never has to distinguish a real reading from
     a fabricated fallback.
     """
-    report = _extract_report_time(b, dp_id_prefixed=dp_id_prefixed)
+    report = extract_report_time(b, dp_id_prefixed=dp_id_prefixed)
     if report is not None:
         result["report_time"], result["report_time_raw"] = report
 
