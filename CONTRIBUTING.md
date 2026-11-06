@@ -82,8 +82,6 @@ Debug logs get pasted into public issues, so log lines on cloud-record paths car
 
 Log anything else from a cloud record through `utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `utils._RecordSummary`, which does that work only when a handler formats the line.
 
-Some older log calls in `decoders.py` predate this rule and still log raw payloads, so don't copy them.
-
 ## Adding a new device model
 
 Model constants and decoders live here, so a new model starts in this repo and finishes in ha-rainpoint.
