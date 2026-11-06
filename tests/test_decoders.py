@@ -1,10 +1,12 @@
 """Tests for RainPoint device decoders."""
 
+import contextlib
 import logging
 import traceback
 
 import pytest
 
+import aiorainpoint
 from aiorainpoint import (
     SINGLE_OUTLET_GALLONS_PER_COUNT,
     decode_co2,
@@ -128,7 +130,7 @@ class TestDecodeHtv213frfValve:
             "zones": {},
             "tlv_raw": {},
             "decoder": "htv213frf_error",
-            "error": "Unexpected payload format: not_a_valid_payload",
+            "error": "Unexpected payload format: 19-character payload",
         }
 
     def test_semicolon_with_no_comma_still_declines_rather_than_misrouting_to_ascii(self):
@@ -140,7 +142,7 @@ class TestDecodeHtv213frfValve:
         its own header-parsing error.
         """
         result = decode_htv213frf_valve("test;no_comma_here")
-        assert result["error"] == "Unexpected payload format: test;no_comma_here"
+        assert result["error"] == "Unexpected payload format: 18-character payload"
 
     def test_rssi_negative_value_preserved(self):
         """Negative RSSI value (-84) is preserved in the decoded output."""
@@ -1084,7 +1086,6 @@ class TestDecodeHws019wrfV2:
         assert "readings" not in result
         assert "flags" not in result
         assert "';'" in result["error"]
-        assert "1,0,1" in result["error"]
         assert result["raw"] == "1,0,1"
 
     def test_malformed_flag_token_routes_to_error_path(self):
@@ -1092,8 +1093,8 @@ class TestDecodeHws019wrfV2:
         result = decode_hws019wrf_v2("1,abc,0;707(707/694/1)")
         assert result["type"] == "hws019wrf_v2"
         assert "flags" not in result
-        assert "abc" in result["error"]
-        assert "1,abc,0" in result["error"]
+        assert "invalid flag token" in result["error"]
+        assert "abc" not in result["error"]
 
     def test_empty_flag_tokens_are_skipped(self):
         """Empty flag tokens (e.g. from a stray comma) are tolerated, not treated as malformed."""
@@ -1605,7 +1606,7 @@ class TestDecodeMoistureFullErrorBranches:
             "rssi_dbm": None,
             "raw_bytes": [],
             "decoder": "hcs021frf_error",
-            "error": "Unexpected payload format: not_matching_any_format",
+            "error": "Unexpected payload format: 23-character payload",
         }
 
     def test_comma_alone_with_no_semicolon_or_equals_does_not_misroute_to_ascii(self):
@@ -1617,7 +1618,7 @@ class TestDecodeMoistureFullErrorBranches:
         header/body split in a string with no ';'.
         """
         result = decode_moisture_full("1,2,3")
-        assert result["error"] == "Unexpected payload format: 1,2,3"
+        assert result["error"] == "Unexpected payload format: 5-character payload"
 
     def test_invalid_hex_returns_error_dict(self):
         """Bad hex characters after '10#' route through the wrapper exception path."""
@@ -3174,3 +3175,51 @@ class TestFlowMeterDecoder:
         assert result["rssi_dbm"] == -79
         assert result["flowtotal"] is None
         assert "report_time" not in result
+
+
+def _exported_decoders():
+    """Every exported payload decoder, so a new one is covered without touching this test."""
+    skipped = {"decode_generic", "decode_packed_report_time", "decode_packed_timestamp"}
+    names = [n for n in sorted(aiorainpoint.__all__) if n.startswith("decode_") and n not in skipped]
+    return [pytest.param(getattr(aiorainpoint, n), id=n) for n in names]
+
+
+class TestPayloadsStayOutOfLogs:
+    """Debug logs get pasted into public issues, so no decoder may write the payload to one."""
+
+    MARKER = "DEADBEEF"
+    PAYLOADS = (
+        "99#DEADBEEFCAFEBABE",
+        "10#DEADBEEFCAFEBABE",
+        "11#DEADBEEFCAFEBABE",
+        "11#DEADBEEF",
+        "DEADBEEF",
+        "1,-84,1;DEADBEEF",
+        "1,-84,1;DEADBEEF|1,0,0",
+        "0,DEADBEEF,1;2,3",
+        "1,-84,1;DEADBEEF,1,0",
+        "1,-84,1;1,DEADBEEF,0",
+        "1,-84,1;70,70,DEADBEEF",
+        "10#" + "DEADBEEF" * 40,
+        "11#" + "DEADBEEF" * 40,
+    )
+
+    @staticmethod
+    def _everything_logged(caplog) -> str:
+        """Messages and tracebacks, since an exception's text travels inside the traceback."""
+        formatter = logging.Formatter()
+        parts = []
+        for record in caplog.records:
+            parts.append(record.getMessage())
+            if record.exc_info:
+                parts.append(formatter.formatException(record.exc_info))
+        return "\n".join(parts)
+
+    @pytest.mark.parametrize("decoder", _exported_decoders())
+    @pytest.mark.parametrize("payload", PAYLOADS)
+    def test_decoder_logs_no_payload(self, decoder, payload, caplog):
+        """Covers success and failure paths, because either can log what it was handed."""
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint"), contextlib.suppress(ValueError):
+            decoder(payload)
+
+        assert self.MARKER not in self._everything_logged(caplog).upper()
