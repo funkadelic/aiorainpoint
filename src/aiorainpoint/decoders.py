@@ -32,6 +32,7 @@ from .utils import (
     _le16,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
+    _RecordSummary,
     f10_to_c,
     parse_entries,
     valid_rssi_dbm,
@@ -122,10 +123,10 @@ def decode_htv213frf_valve(raw: str) -> dict:
         elif "," in raw and (";" in raw or "|" in raw):
             return _decode_htv213frf_ascii(raw)
         else:
-            raise ValueError(f"Unexpected payload format: {raw}")
+            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
 
     except Exception as e:
-        _LOGGER.exception("HTV213FRF router error for payload %r", raw)
+        _LOGGER.exception("HTV213FRF router error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             "rssi_dbm": None,
@@ -137,6 +138,19 @@ def decode_htv213frf_valve(raw: str) -> dict:
         }
 
 
+def _payload_length(raw: object) -> int:
+    """Length for an error log line, safe to call from a handler whatever the decoder was handed."""
+    return len(raw) if isinstance(raw, str) else 0
+
+
+def _ascii_int(token: str) -> int:
+    """Parse a cloud field as int. The built-in's error quotes the value, and tracebacks get logged."""
+    try:
+        return int(token)
+    except ValueError:
+        raise ValueError(f"non-integer field of {len(token)} characters") from None
+
+
 def _decode_htv213frf_ascii(raw: str) -> dict:
     """
     Decode HTV213FRF ASCII format payload.
@@ -145,7 +159,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
     Structure: [flags],[rssi],[flags];[zone1_data]|[zone2_data]
     """
 
-    _LOGGER.info("HTV213FRF ASCII payload: %s", raw)
+    _LOGGER.debug("Decoding HTV213FRF ASCII payload")
 
     zones = {}
     hub_online = False
@@ -165,9 +179,9 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
         if len(header_parts) < 3:
             raise ValueError("Invalid ASCII header format")
 
-        _flags1 = int(header_parts[0])
-        rssi_raw = int(header_parts[1])  # RSSI in dBm (negative number)
-        _flags2 = int(header_parts[2])
+        _flags1 = _ascii_int(header_parts[0])
+        rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
+        _flags2 = _ascii_int(header_parts[2])
 
         # Extract RSSI; positive values indicate a malformed payload.
         if rssi_raw >= 0:
@@ -185,7 +199,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
 
             zone_parts = zone_data.split(",")
             if len(zone_parts) < 6:
-                _LOGGER.warning("Invalid zone data format: %s", zone_data)
+                _LOGGER.warning("Invalid zone data format: %s", _RecordSummary(zone_data))
                 continue
 
             # Parse zone data: [zone_id?, state, duration?, ?, ?, ?]
@@ -193,9 +207,9 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
             # Zone 1: 0,149,0,0,0,0
             # Zone 2: 0,6,0,0,0,0
 
-            zone_id_raw = int(zone_parts[0])
-            state = int(zone_parts[1])
-            duration = int(zone_parts[2]) if len(zone_parts) > 2 else 0
+            zone_id_raw = _ascii_int(zone_parts[0])
+            state = _ascii_int(zone_parts[1])
+            duration = _ascii_int(zone_parts[2]) if len(zone_parts) > 2 else 0
 
             # Map to sequential zone number
             zone_mapping[sequential_zone] = {
@@ -239,7 +253,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
         return result
 
     except Exception:
-        _LOGGER.exception("HTV213FRF ASCII decoder error for payload %r", raw)
+        _LOGGER.exception("HTV213FRF ASCII decoder error for a %d-character payload", _payload_length(raw))
         raise
 
 
@@ -317,7 +331,7 @@ def _decode_htv213frf_hex(raw: str) -> dict:
 
     try:
         b = _parse_rainpoint_payload(raw)
-        _LOGGER.debug("HTV213FRF hex raw bytes: %s", b)
+        _LOGGER.debug("HTV213FRF hex payload: %d bytes", len(b))
 
         records = _map_dp_records(b)
         zones = _extract_dp_zones(records, with_usage=True)
@@ -326,7 +340,7 @@ def _decode_htv213frf_hex(raw: str) -> dict:
 
         _LOGGER.debug(
             "HTV213FRF hex decoded: zones=%s, hub_online=%s, battery=%s (flag %s)",
-            zones,
+            _RecordSummary(zones),
             bool(zones),
             battery_percent,
             battery_flag,
@@ -348,7 +362,7 @@ def _decode_htv213frf_hex(raw: str) -> dict:
         return result
 
     except Exception:
-        _LOGGER.exception("HTV213FRF hex decoder error for payload %r", raw)
+        _LOGGER.exception("HTV213FRF hex decoder error for a %d-character payload", _payload_length(raw))
         raise
 
 
@@ -464,11 +478,11 @@ def decode_htv210b(raw: str) -> dict:
     """
     try:
         if not _is_dp_id_framed(raw):
-            raise ValueError(f"Unexpected payload format: {raw}")
+            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
         b = _parse_rainpoint_payload(raw)
         records = _map_dp_records(b)
         zones = _extract_dp_zones(records, with_usage=False)
-        _LOGGER.debug("HTV210B decoded: zones=%s", zones)
+        _LOGGER.debug("HTV210B decoded: zones=%s", _RecordSummary(zones))
         battery_flag, battery_percent = _extract_dp_battery(b)
         result = {
             "type": "valve_hub",
@@ -486,7 +500,7 @@ def decode_htv210b(raw: str) -> dict:
         _attach_report_time(result, b, dp_id_prefixed=True)
         return result
     except Exception as e:
-        _LOGGER.exception("HTV210B decoder error for payload %r", raw)
+        _LOGGER.exception("HTV210B decoder error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             # None, not 0: the RSSI sensor renders this value verbatim, and a
@@ -794,7 +808,7 @@ def decode_htv145frf(raw: str) -> dict:
         return result
 
     except Exception as e:
-        _LOGGER.exception("Single-outlet timer decoder error for payload %r", raw)
+        _LOGGER.exception("Single-outlet timer decoder error for a %d-character payload", _payload_length(raw))
         return {
             "type": "valve_hub",
             # None, not 0: the RSSI sensor renders this value verbatim, and a
@@ -825,7 +839,7 @@ def decode_moisture_full(raw: str) -> dict:
         elif "," in raw and (";" in raw or "=" in raw):
             return _decode_moisture_full_ascii(raw)
         else:
-            raise ValueError(f"Unexpected payload format: {raw}")
+            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
 
     except Exception as e:
         _LOGGER.exception("HCS021FRF decoder error")
@@ -840,7 +854,7 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
     Structure: [flags],[rssi],[flags];[temp_raw],[moisture],[lux_data]
     """
 
-    _LOGGER.info("HCS021FRF ASCII payload: %s", raw)
+    _LOGGER.debug("Decoding HCS021FRF ASCII payload")
 
     try:
         # Parse the ASCII format
@@ -857,9 +871,9 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
         if len(header_parts) < 3:
             raise ValueError("Invalid ASCII header format")
 
-        _flags1 = int(header_parts[0])
-        rssi_raw = int(header_parts[1])  # RSSI in dBm (negative number)
-        _flags2 = int(header_parts[2])
+        _flags1 = _ascii_int(header_parts[0])
+        rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
+        _flags2 = _ascii_int(header_parts[2])
 
         # Extract RSSI; positive values indicate a malformed payload.
         if rssi_raw >= 0:
@@ -873,8 +887,8 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
             raise ValueError("Invalid ASCII sensor data format")
 
         # Parse sensor values
-        temp_raw = int(sensor_parts[0])  # Temperature raw value (Fahrenheit * 10)
-        moisture = int(sensor_parts[1])  # Moisture percentage
+        temp_raw = _ascii_int(sensor_parts[0])  # Temperature raw value (Fahrenheit * 10)
+        moisture = _ascii_int(sensor_parts[1])  # Moisture percentage
         lux_data = sensor_parts[2]  # Lux data (may contain =)
 
         # Parse temperature - ASCII format provides Fahrenheit * 10
@@ -887,14 +901,14 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
         if "=" in lux_data:
             lux_parts = lux_data.split("=")
             if len(lux_parts) == 2:
-                lux_raw = int(lux_parts[1])
+                lux_raw = _ascii_int(lux_parts[1])
                 lux = lux_raw / 10.0  # Assuming similar scaling as hex format
             else:
                 lux = 0
         else:
             # Try to parse as direct lux value
             try:
-                lux = int(lux_data) / 10.0
+                lux = _ascii_int(lux_data) / 10.0
             except ValueError:
                 lux = 0
 
@@ -1013,7 +1027,7 @@ def _parse_hws019_flags(flags_part: str) -> list[int]:
         if not token:
             continue
         if not token.isdigit():
-            raise ValueError(f"invalid flag token {token!r} in flags segment {flags_part!r}")
+            raise ValueError(f"invalid flag token in a {len(flags_part)}-character flags segment")
         flags.append(int(token))
     return flags
 
@@ -1139,11 +1153,11 @@ def decode_hws019wrf_v2(raw: str) -> dict:
     The third field is 1 in every sample seen so far and its meaning is
     unknown, so it is preserved verbatim rather than named.
     """
-    _LOGGER.debug("decode_hws019wrf_v2 called with raw: %r", raw)
+    _LOGGER.debug("Decoding HWS019WRF-V2")
     try:
         parts = raw.split(";")
         if len(parts) < 2:
-            raise ValueError(f"expected ';' separator between flags and readings in HWS019 payload: {raw!r}")
+            raise ValueError("expected ';' separator between flags and readings in HWS019 payload")
         flags = _parse_hws019_flags(parts[0])
         readings, reading_stats = _parse_hws019_readings(parts[1])
         result = {
@@ -1153,10 +1167,10 @@ def decode_hws019wrf_v2(raw: str) -> dict:
             "reading_stats": reading_stats,
             "raw": raw,
         }
-        _LOGGER.debug("decode_hws019wrf_v2 result: %r", result)
+        _LOGGER.debug("decode_hws019wrf_v2 result: %s", _RecordSummary(result))
         return result
     except (ValueError, IndexError) as ex:
-        _LOGGER.exception("Failed to decode HWS019WRF-V2 payload (raw: %r)", raw)
+        _LOGGER.exception("Failed to decode a %d-character HWS019WRF-V2 payload", _payload_length(raw))
         return {"type": "hws019wrf_v2", "raw": raw, "error": str(ex)}
 
 
@@ -1165,18 +1179,6 @@ def decode_hws019wrf_v2(raw: str) -> dict:
 # Zone N duration DP = _VALVE_HUB_DP_BASE_DURATION + N (0x25 = zone 1, 0x26 = zone 2, ...)
 _VALVE_HUB_DP_HUB_STATE = 0x18
 _VALVE_HUB_DP_BASE_DURATION = 0x24
-
-
-def _format_valve_hub_tlv_log(tlv: dict) -> dict:
-    """Format the valve hub TLV map for diagnostic logging."""
-    return {
-        f"0x{dp:02X}": (
-            f"0x{type_byte:02X}",
-            f"0x{value_int:02X}" if value_int < 256 else value_int,
-            raw_bytes.hex(),
-        )
-        for dp, (type_byte, value_int, raw_bytes) in tlv.items()
-    }
 
 
 def _extract_valve_hub_zone(zone_num: int, tlv: dict) -> dict | None:
@@ -1241,13 +1243,10 @@ def decode_valve_hub(raw: str) -> dict:
 
     try:
         b = _parse_rainpoint_payload(raw)
-        _LOGGER.debug("Valve hub raw bytes: %s", b)
+        _LOGGER.debug("Valve hub payload: %d bytes", len(b))
 
         tlv = _parse_tlv_payload(raw)
-        _LOGGER.debug(
-            "Valve hub TLV entries: %s",
-            _format_valve_hub_tlv_log(tlv),
-        )
+        _LOGGER.debug("Valve hub TLV entries: %s", _RecordSummary(tlv))
 
         zones = _extract_valve_hub_zones(tlv)
         battery_flag = _extract_battery_flag(b, dp_id_prefixed=True)
@@ -1471,7 +1470,7 @@ def decode_flow_meter(raw: str) -> dict:
     between runs rather than going unknown.
     """
 
-    _LOGGER.debug("Decoding HCS008FRF: %s", raw)
+    _LOGGER.debug("Decoding HCS008FRF")
 
     # Every captured frame is 57 bytes. The floor rejects a payload too short to
     # carry this meter's datapoint set at all; the helper's implicit ceiling of
@@ -1508,7 +1507,7 @@ decode_flowmeter = decode_flow_meter
 def decode_pool_plus(raw: str) -> dict:
     """Decode HCS0530THO (pool plus with CO2)."""
 
-    _LOGGER.debug("Decoding HCS0530THO: %s", raw)
+    _LOGGER.debug("Decoding HCS0530THO")
 
     result: dict[str, Any] = {
         "type": "co2",
@@ -1537,7 +1536,7 @@ def decode_pool_plus(raw: str) -> dict:
 def decode_soil(raw: str) -> dict:
     """Decode soil sensor."""
 
-    _LOGGER.debug("Decoding soil sensor: %s", raw)
+    _LOGGER.debug("Decoding soil sensor")
 
     result: dict[str, Any] = {
         "type": "soil",
@@ -1560,7 +1559,7 @@ def decode_soil(raw: str) -> dict:
 def decode_temp_hum(raw: str) -> dict:
     """Decode temperature/humidity sensor."""
 
-    _LOGGER.debug("Decoding temp/hum sensor: %s", raw)
+    _LOGGER.debug("Decoding temp/hum sensor")
 
     result: dict[str, Any] = {
         "type": "temphum",
@@ -1583,7 +1582,7 @@ def decode_temp_hum(raw: str) -> dict:
 def decode_temp_hum_full(raw: str) -> dict:
     """Decode full temperature/humidity sensor."""
 
-    _LOGGER.debug("Decoding full temp/hum sensor: %s", raw)
+    _LOGGER.debug("Decoding full temp/hum sensor")
 
     result: dict[str, Any] = {
         "type": "temphum_full",
@@ -1606,7 +1605,7 @@ def decode_temp_hum_full(raw: str) -> dict:
 def decode_co2(raw: str) -> dict:
     """Decode CO2 sensor."""
 
-    _LOGGER.debug("Decoding CO2 sensor: %s", raw)
+    _LOGGER.debug("Decoding CO2 sensor")
 
     result: dict[str, Any] = {
         "type": "co2",
@@ -1629,7 +1628,7 @@ def decode_co2(raw: str) -> dict:
 def decode_display(raw: str) -> dict:
     """Decode display sensor."""
 
-    _LOGGER.debug("Decoding display sensor: %s", raw)
+    _LOGGER.debug("Decoding display sensor")
 
     result: dict[str, Any] = {
         "type": "display",
@@ -1652,7 +1651,7 @@ def decode_display(raw: str) -> dict:
 def decode_unknown(raw: str) -> dict:
     """Decode unknown device."""
 
-    _LOGGER.debug("Decoding unknown device: %s", raw)
+    _LOGGER.debug("Decoding unknown device")
 
     result: dict[str, Any] = {
         "type": "unknown",
@@ -1676,7 +1675,7 @@ def decode_unknown(raw: str) -> dict:
 def decode_temphum(raw: str) -> dict:
     """Decode HCS014ARF (temperature/humidity) payload."""
 
-    _LOGGER.debug("Decoding HCS014ARF: %s", raw)
+    _LOGGER.debug("Decoding HCS014ARF")
 
     result: dict[str, Any] = {
         "type": "temphum",
@@ -1712,7 +1711,7 @@ def decode_pool(raw: str) -> dict:
     direction, and nothing reads it.
     """
 
-    _LOGGER.debug("Decoding pool sensor: %s", raw)
+    _LOGGER.debug("Decoding pool sensor")
 
     result: dict[str, Any] = {
         "type": "pool",

@@ -20,7 +20,7 @@ def _validate_payload(raw: str, expected_length: int) -> bytes:
     prefix, hex_data = raw.split("#", 1)
 
     if prefix != "10":
-        raise ValueError(f"Expected prefix '10', got '{prefix}'")
+        raise ValueError(f"Expected prefix '10', got a {len(prefix)}-character prefix")
 
     b = bytes.fromhex(hex_data)
 
