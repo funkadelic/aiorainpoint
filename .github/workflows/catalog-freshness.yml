@@ -10,7 +10,6 @@ permissions:
 
 on:
   schedule:
-    # An hour after ha-rainpoint's run, which uses the same RainPoint account.
     - cron: "0 7 * * 1"
   workflow_dispatch:
 
