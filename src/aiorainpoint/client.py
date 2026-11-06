@@ -369,20 +369,28 @@ class RainPointClient:
             raise RainPointThrottledError(
                 f"Login rate-limited (code 9993); cooling down {_LOGIN_COOLDOWN_SECONDS}s", _LOGIN_COOLDOWN_SECONDS
             )
-        if code != 0 or "data" not in data:
+        d = data.get("data")
+        token = d.get("token") if isinstance(d, dict) else None
+        if code != 0 or not isinstance(token, str) or not token:
             _LOGGER.debug("Login failed response: %s", _RecordSummary(data))
             raise RainPointApiError(f"Login failed: code {code}")
+
+        # Worked out before any state changes, so a bad value leaves the old token in place.
+        token_expired_secs = d.get("tokenExpired") or 0
+        ts_server = data.get("ts")  # ms since epoch
+        try:
+            base = datetime.fromtimestamp(ts_server / 1000, tz=UTC) if ts_server else datetime.now(UTC)
+            token_expires_at = base + timedelta(seconds=token_expired_secs)
+        except (TypeError, ValueError, OverflowError, OSError) as exc:
+            _LOGGER.debug("Login failed response: %s", _RecordSummary(data))
+            raise RainPointApiError("Login failed: unusable token expiry") from exc
 
         # A clean login clears any prior throttle state.
         self._login_cooldown_until = None
 
-        d = data["data"]
-        self._token = d["token"]
+        self._token = token
         self._refresh_token = d.get("refreshToken")
-        token_expired_secs = d.get("tokenExpired", 0)
-        ts_server = data.get("ts")  # ms since epoch
-        base = datetime.fromtimestamp(ts_server / 1000, tz=UTC) if ts_server else datetime.now(UTC)
-        self._token_expires_at = base + timedelta(seconds=token_expired_secs)
+        self._token_expires_at = token_expires_at
 
         _LOGGER.info("RainPoint login successful; token expires in %s seconds", token_expired_secs)
 
@@ -612,31 +620,25 @@ class RainPointClient:
                 "pushId": uuid.uuid4().hex,
             },
         }
-        _LOGGER.debug(
-            "API call: get_subscribe_status URL=%s deviceName=%s productKey=%s mid=%s hid=%s",
-            url,
-            device_name,
-            product_key,
-            mid,
-            hid_str,
-        )
+        _LOGGER.debug("API call: get_subscribe_status URL=%s mid=%s hid=%s", url, mid, hid_str)
         request_token = self._token
         async with self._session.post(url, json=payload, headers=self._auth_headers()) as resp:
             if resp.status != 200:
                 raise RainPointApiError(f"subscribeStatus HTTP {resp.status}")
             data = await resp.json()
 
-        resp_data = data.get("data") or {}
-        # The response carries deviceSecret, so log only the key set -- never the
-        # secret itself, not even redacted.
-        _LOGGER.debug(
-            "API response: get_subscribe_status keys=%s",
-            sorted(resp_data.keys()),
-        )
         if data.get("code") != 0:
             self._maybe_invalidate_token(data.get("code"), request_token)
             _LOGGER.debug("subscribeStatus failed response: code=%s", data.get("code"))
             raise RainPointApiError(f"subscribeStatus failed: code {data.get('code')}")
+        resp_data = data.get("data")
+        if resp_data is None:
+            resp_data = {}
+        if not isinstance(resp_data, dict):
+            raise RainPointApiError(f"subscribeStatus returned {type(resp_data).__name__} data, not an object")
+        # The response carries deviceSecret, so log only the key set -- never the
+        # secret itself, not even redacted.
+        _LOGGER.debug("API response: get_subscribe_status keys=%s", sorted(resp_data.keys()))
         return resp_data
 
     async def set_device_state(self, home_id: int, device_name: str, mid: int, product_key: str, state: dict) -> bool:
@@ -824,9 +826,9 @@ class RainPointClient:
             return resp_data
         if resp_data is not None:
             _LOGGER.warning(
-                "controlWorkMode: unexpected 'data' type %s; value: %s",
+                "controlWorkMode: unexpected 'data' type %s: %s",
                 type(resp_data).__name__,
-                resp_data,
+                _RecordSummary(resp_data),
             )
         else:
             _LOGGER.debug("controlWorkMode: API returned code=0 but no 'data' key; optimistic update skipped")
