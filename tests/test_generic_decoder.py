@@ -846,3 +846,16 @@ class TestHic801wFieldConstantsExcludeWkstate:
         cannot fail this test for a reason that has nothing to do with it.
         """
         assert "other model families" not in _hic801w_field_constant_comment()
+
+
+class TestParseFailureLogging:
+    """A payload that fails to parse never reaches the log."""
+
+    def test_parse_failure_logs_no_payload(self, caplog):
+        """The exception text can echo a fragment too, so only its type is logged."""
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.generic_decoder"):
+            result = decode_generic("10#zz00aabb", model="HTV245FRF")
+
+        assert result["error"]
+        assert "zz00aabb" not in caplog.text.lower()
+        assert "decode_generic failed" in caplog.text
