@@ -29,10 +29,10 @@ from .utils import (
     _find_field_int,
     _find_field_value,
     _is_dp_id_framed,
-    _le16,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
     f10_to_c,
+    le16,
     parse_entries,
     valid_rssi_dbm,
 )
@@ -972,14 +972,14 @@ def _decode_moisture_full_hex(raw: str) -> dict:
     _validate_tag(b, 5, 0x85, "HCS021FRF")
 
     rssi = _extract_rssi(b)
-    temp_raw_f10 = _le16(b, 6)
+    temp_raw_f10 = le16(b, 6)
     temp_c = f10_to_c(temp_raw_f10)
 
     _validate_tag(b, 8, 0x88, "HCS021FRF")
     moisture = b[9]
 
     _validate_tag(b, 10, 0xC6, "HCS021FRF")
-    lux_raw10 = _le16(b, 11)
+    lux_raw10 = le16(b, 11)
     lux = lux_raw10 / 10.0
 
     battery_flag = _extract_battery_flag(b)
@@ -1312,10 +1312,10 @@ def decode_rain(raw: str) -> dict:
         raise ValueError("HCS012ARF: Missing FD 06 at [11:13]")
     _validate_tag(b, 17, 0x97, "HCS012ARF")
 
-    last_hour_raw10 = _le16(b, 5)
-    last_24h_raw10 = _le16(b, 9)
-    last_7d_raw10 = _le16(b, 13)
-    total_raw10 = _le16(b, 18)
+    last_hour_raw10 = le16(b, 5)
+    last_24h_raw10 = le16(b, 9)
+    last_7d_raw10 = le16(b, 13)
+    total_raw10 = le16(b, 18)
 
     battery_flag = _extract_battery_flag(b)
 

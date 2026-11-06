@@ -8,11 +8,11 @@ from aiorainpoint import (
     _base_decoder_dict,
     _extract_report_time,
     _is_dp_id_framed,
-    _le16,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
     encode_dp_duration_param,
     f10_to_c,
+    le16,
     parse_hub_broadcast_flag,
     parse_sub_power_mode,
     splice_hub_broadcast_param,
@@ -230,19 +230,19 @@ class TestParseTlvPayload:
 
 
 class TestLe16:
-    """Tests for _le16 helper."""
+    """Tests for le16 helper."""
 
     def test_basic(self):
         """Basic."""
-        assert _le16(b"\x05\x00", 0) == 5
+        assert le16(b"\x05\x00", 0) == 5
 
     def test_with_offset(self):
         """With offset."""
-        assert _le16(b"\x00\x00\xe8\x03", 2) == 1000
+        assert le16(b"\x00\x00\xe8\x03", 2) == 1000
 
     def test_max_value(self):
         """Max value."""
-        assert _le16(b"\xff\xff", 0) == 65535
+        assert le16(b"\xff\xff", 0) == 65535
 
 
 class TestF10ToC:

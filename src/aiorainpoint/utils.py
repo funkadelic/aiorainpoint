@@ -667,7 +667,7 @@ def encode_dp_duration_param(seconds: int) -> str:
     return clamped.to_bytes(4, "little").hex().upper()
 
 
-def _le16(b: bytes, offset: int) -> int:
+def le16(b: bytes, offset: int) -> int:
     """Extract little-endian 16-bit integer from bytes at offset."""
     return int.from_bytes(b[offset : offset + 2], "little")
 
