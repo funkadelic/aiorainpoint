@@ -106,7 +106,7 @@ class TestPublicNames:
         leaked = [
             name
             for name, value in vars(aiorainpoint).items()
-            if not name.startswith("__")
+            if not (name.startswith("__") and name.endswith("__"))
             and not (inspect.ismodule(value) and value.__name__ == f"aiorainpoint.{name}")
             and name not in aiorainpoint.__all__
         ]
