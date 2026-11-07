@@ -1805,9 +1805,7 @@ class RainPointClient:
 
         Distinguishes a response-code guard from an HTTP-status guard
         structurally (the wire test each method actually branches on) rather
-        than by the raised message's wording, which the set_device_state
-        method already shows is not uniform: its message names data.get('msg')
-        rather than the word "code".
+        than by the raised message's wording.
 
         Matches both "code != 0" and the reversed "0 != code". The reversed
         form is unconventional, but recognizing only one orientation would drop
@@ -3212,73 +3210,6 @@ class TestGetDeviceStatus:
 
         with pytest.raises(RainPointApiError, match="getDeviceStatus failed: code 1001"):
             await client.get_device_status(mid=1)
-
-        assert client._token_expires_at is None
-
-
-class TestSetDeviceState:
-    """Tests for set_device_state API method."""
-
-    @pytest.mark.asyncio
-    async def test_set_device_state_success(self):
-        """set_device_state returns True on success."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        json_body = {"code": 0}
-        client._session.post = MagicMock(return_value=_mock_response(json_body))
-
-        result = await client.set_device_state(home_id=1, device_name="dev", mid=100, product_key="pk", state={"mode": 1})
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_set_device_state_api_error(self):
-        """set_device_state raises RainPointApiError on non-zero API code."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        json_body = {"code": 5, "msg": "fail"}
-        client._session.post = MagicMock(return_value=_mock_response(json_body))
-
-        with pytest.raises(RainPointApiError):
-            await client.set_device_state(home_id=1, device_name="dev", mid=100, product_key="pk", state={})
-
-    @pytest.mark.asyncio
-    async def test_set_device_state_http_error(self):
-        """set_device_state raises RainPointApiError on HTTP 500."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        client._session.post = MagicMock(return_value=_mock_response({}, status=500))
-
-        with pytest.raises(RainPointApiError):
-            await client.set_device_state(home_id=1, device_name="dev", mid=100, product_key="pk", state={})
-
-    @pytest.mark.asyncio
-    async def test_set_device_state_request_url_and_body_are_exact(self):
-        """Pins every key the request body carries, and the URL it posts to."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-        client._session.post = MagicMock(return_value=_mock_response({"code": 0}))
-
-        await client.set_device_state(home_id=1, device_name="dev", mid=100, product_key="pk", state={"mode": 1})
-
-        args, kwargs = client._session.post.call_args
-        assert args == (f"{client._base_url}/app/device/setDeviceStatus",)
-        assert kwargs["json"] == {"homeId": 1, "deviceName": "dev", "mid": 100, "productKey": "pk", "status": {"mode": 1}}
-        assert kwargs["headers"] == client._auth_headers()
-
-    @pytest.mark.asyncio
-    async def test_set_device_state_error_path_invalidates_the_matching_token(self):
-        """A session-rejection code expires the token that made this request."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-        client._token_expires_at = datetime.now(UTC) + timedelta(hours=1)
-        client._session.post = MagicMock(return_value=_mock_response({"code": 1001, "msg": "NOT_TOKEN"}))
-
-        with pytest.raises(RainPointApiError):
-            await client.set_device_state(home_id=1, device_name="dev", mid=100, product_key="pk", state={})
 
         assert client._token_expires_at is None
 

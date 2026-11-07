@@ -644,27 +644,6 @@ class RainPointClient:
         _LOGGER.debug("API response: get_subscribe_status keys=%s", sorted(resp_data.keys()))
         return resp_data
 
-    async def set_device_state(self, home_id: int, device_name: str, mid: int, product_key: str, state: dict) -> bool:
-        """Set device state."""
-        await self.ensure_logged_in()
-        url = f"{self._base_url}/app/device/setDeviceStatus"
-        payload = {
-            "homeId": home_id,
-            "deviceName": device_name,
-            "mid": mid,
-            "productKey": product_key,
-            "status": state,
-        }
-        request_token = self._token
-        async with self._session.post(url, headers=self._auth_headers(), json=payload) as resp:
-            if resp.status != 200:
-                raise RainPointApiError(f"Failed to set device state: {resp.status}")
-            data = await resp.json()
-            if data.get("code") != 0:
-                self._maybe_invalidate_token(data.get("code"), request_token)
-                raise RainPointApiError(f"Set device state API error: {data.get('msg')}")
-            return True
-
     async def update_main_param(self, mid: int, param: str) -> bool:
         """Write a hub's top-level `param` blob back to the cloud.
 
