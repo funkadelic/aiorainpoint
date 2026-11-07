@@ -3216,9 +3216,10 @@ class TestClimateDecoders:
         result = decode_temphum("10#E5010203")
         assert (result["templow"], result["temphigh"]) == (None, None)
 
-    def test_short_co2_record_reads_unknown(self):
-        """A one-byte STA_CO2 record is not a reading."""
-        assert decode_co2("10#CC05")["co2"] is None
+    @pytest.mark.parametrize("payload", ["10#CC05", "10#CDC801", "10#CEC801DC"])
+    def test_short_co2_record_reads_unknown(self, payload):
+        """STA_CO2 is four bytes wide, so anything shorter is not a reading."""
+        assert decode_co2(payload)["co2"] is None
 
     def test_ascii_bad_token_costs_only_that_reading(self):
         """An unparsable temperature leaves the humidity beside it intact."""
@@ -3238,9 +3239,18 @@ class TestClimateDecoders:
         assert result["co2temp"] == 22.7
         assert result["co2"] is None
 
-    def test_ascii_bad_co2_token_reads_no_co2(self):
-        """A CO2 token that does not parse reads unknown."""
-        assert decode_co2("1,0,1;728(759/723/1),54(57/44/1),C=nothex")["co2"] is None
+    @pytest.mark.parametrize("token", ["C=nothex", "C=E601(754/437)", "C=E601DC05FF(754/437)"])
+    def test_ascii_bad_co2_token_reads_no_co2(self, token):
+        """A CO2 token that is not exactly two words reads unknown."""
+        assert decode_co2(f"1,0,1;728(759/723/1),54(57/44/1),{token}")["co2"] is None
+
+    @pytest.mark.parametrize(
+        ("decode", "payload"),
+        [(decode_co2, SAMPLE_HCS0530THO_ASCII), (decode_temphum, SAMPLE_HCS014ARF_ASCII)],
+    )
+    def test_ascii_keeps_the_raw_payload(self, decode, payload):
+        """ASCII frames carry raw_bytes, as the hex path and other ASCII decoders do."""
+        assert decode(payload)["raw_bytes"] == payload.encode("ascii")
 
     def test_ascii_header_reading_becomes_rssi(self):
         """A negative header value is a signal reading."""

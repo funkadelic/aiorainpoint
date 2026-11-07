@@ -1513,7 +1513,7 @@ decode_flowmeter = decode_flow_meter
 
 # ASCII climate readings: current(high/low/n), then CO2 as C=<two LE words>(high/low).
 _ASCII_CLIMATE_READING = re.compile(r"(-?\d+)\((-?\d+)/(-?\d+)/\d+\)")
-_ASCII_CO2_READING = re.compile(r"C=([0-9A-Fa-f]{4})[0-9A-Fa-f]*\((\d+)/(\d+)\)")
+_ASCII_CO2_READING = re.compile(r"C=([0-9A-Fa-f]{4})[0-9A-Fa-f]{4}\((\d+)/(\d+)\)")
 
 
 def _le_int(value_bytes: list[int], *, signed: bool = False) -> int:
@@ -1543,8 +1543,9 @@ def _attach_frame_status(result: dict, b: bytes) -> None:
     _attach_report_time(result, b)
 
 
-def _attach_ascii_rssi(result: dict, raw: str) -> None:
-    """Add rssi_dbm from the ASCII header, leaving it absent when the header has no reading."""
+def _attach_ascii_status(result: dict, raw: str) -> None:
+    """Add the raw payload, plus rssi_dbm when the ASCII header has a reading."""
+    result["raw_bytes"] = raw.encode("ascii")
     rssi = _parse_ascii_rssi(raw)
     if rssi is not None:
         result["rssi_dbm"] = rssi
@@ -1624,7 +1625,7 @@ def decode_co2(raw: str) -> dict:
             result["co2temp"] = _tenths_c(temp[0])
             result["co2humidity"] = humidity[0]
             result["co2"], result["co2high"], result["co2low"] = co2
-            _attach_ascii_rssi(result, raw)
+            _attach_ascii_status(result, raw)
         else:
             b = _parse_rainpoint_payload(raw)
             if b and len(b) > 1:
@@ -1633,7 +1634,7 @@ def decode_co2(raw: str) -> dict:
                 result["co2temp"] = _tenths_c(temp_f10)
                 result["co2humidity"] = _find_field_int(b, STA_RH_FIELD)
                 reading = _find_field_value(b, STA_CO2_FIELD)
-                if reading is not None and len(reading) >= 2:
+                if reading is not None and len(reading) == 4:
                     result["co2"] = _le_int(reading[:2])
                 result["co2low"], result["co2high"] = _range_pair(b, STA_CO2_RANGE_FIELD, 2)
 
@@ -1688,7 +1689,7 @@ def decode_temphum(raw: str) -> dict:
             temp, humidity, _ = _climate_ascii_readings(raw)
             result["tempcurrent"], result["temphigh"], result["templow"] = map(_tenths_c, temp)
             result["humiditycurrent"], result["humidityhigh"], result["humiditylow"] = humidity
-            _attach_ascii_rssi(result, raw)
+            _attach_ascii_status(result, raw)
         else:
             b = _parse_rainpoint_payload(raw)
             if b and len(b) > 1:
