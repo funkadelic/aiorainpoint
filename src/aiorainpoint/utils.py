@@ -15,6 +15,13 @@ _LOGGER = logging.getLogger(__name__)
 # datapoint. Only the ones a hand-written decoder reads live here.
 STA_RAIN_FIELD = 1
 STA_TEM_FIELD = 9
+STA_RH_FIELD = 10
+STA_CO2_FIELD = 27
+# The catalog does not declare these three for the climate sensors. Each packs a
+# low then a high: the current reading sat inside that range on every sample.
+STA_TEM_RANGE_FIELD = 33
+STA_RH_RANGE_FIELD = 34
+STA_CO2_RANGE_FIELD = 47
 STA_BAT_FIELD = 31
 STA_RSSI_FIELD = 32
 STA_REPTIME_FIELD = 54

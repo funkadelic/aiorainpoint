@@ -492,3 +492,18 @@ SAMPLE_HIC801W_IDLE_PAYLOAD = SAMPLE_HIC801W_REPORTER_FRAMES["2026-08-10 idle"]
 # misreading: b0 reads 03, not the 04 a bitmask read of "station 3 running"
 # would produce.
 SAMPLE_HIC801W_STATION3_PAYLOAD = SAMPLE_HIC801W_REPORTER_FRAMES["2026-08-10 st3"]
+
+# Climate frames from the homeassistant-homgar project (MIT, same copyright holder
+# as this repo's LICENSE), tests/fixtures/payloads/. None was verified on hardware
+# here. That project's changelog lists 456 ppm, 27.4 C and 54% for the first
+# HCS0530THO frame. Every other expected value in the tests derives from this
+# repo's decoders.
+#
+# HCS014ARF: hex from its issue #21; ASCII from a live capture.
+SAMPLE_HCS014ARF_HEX = "10#E74A022603DC01B8058551028843E92561FF0F4A700B19"
+SAMPLE_HCS014ARF_ASCII = "1,0,1;622(645/595/1),87(96/78/1),"
+# HCS0530THO: the first hex frame is the one recorded in that project's own decoder
+# docstring, the second and the ASCII frame are live captures.
+SAMPLE_HCS0530THO_HEX = "10#CFC801DC05DC01E796022D03B806852D038836E9364DFF089F01F301FF0FAFB9FA18"
+SAMPLE_HCS0530THO_HEX_2 = "10#CFCB01DC05DC01E789028103B80585D802883FE92744FF08A7013C02FF0F944B1719"
+SAMPLE_HCS0530THO_ASCII = "1,0,1;728(759/723/1),54(57/44/1),C=E601DC05(754/437)"

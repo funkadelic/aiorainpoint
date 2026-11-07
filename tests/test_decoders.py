@@ -56,6 +56,11 @@ from tests.payload_samples import (
     RAIN_DETECTOR_WET_PAYLOAD,
     RAIN_DETECTOR_WET_SECOND_PAYLOAD,
     RAIN_HEX_PAYLOAD,
+    SAMPLE_HCS014ARF_ASCII,
+    SAMPLE_HCS014ARF_HEX,
+    SAMPLE_HCS0530THO_ASCII,
+    SAMPLE_HCS0530THO_HEX,
+    SAMPLE_HCS0530THO_HEX_2,
     SAMPLE_HIC801W_ALL_FRAMES,
     SAMPLE_HIC801W_REPORTER_FRAMES,
     SAMPLE_HIC801W_SECOND_UNIT_FRAMES,
@@ -1347,16 +1352,14 @@ class TestBasicDecoders:
         """Decode co2."""
         result = decode_co2(BASIC_HEX_PAYLOAD)
         assert result["type"] == "co2"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
+        assert result["decoder"] == "co2"
         assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
 
     def test_decode_temphum(self):
         """Decode temphum."""
         result = decode_temphum(BASIC_HEX_PAYLOAD)
         assert result["type"] == "temphum"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
+        assert result["decoder"] == "temphum"
         assert result["raw_bytes"] == bytes.fromhex("E1B000DC01")
 
     def test_decode_pool(self):
@@ -1379,16 +1382,14 @@ class TestBasicDecoderGuardBoundary:
     exception to mask the difference.
     """
 
-    def test_decode_co2_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_co2 takes the rssi branch and sets a real value."""
+    def test_decode_co2_two_byte_buffer_enters_the_frame_branch(self):
+        """At exactly two bytes, decode_co2 walks the frame and keeps its bytes."""
         result = decode_co2("10#E1B0")
-        assert result["rssi"] is not None
         assert result["raw_bytes"] == bytes.fromhex("E1B0")
 
-    def test_decode_temphum_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_temphum takes the rssi branch and sets a real value."""
+    def test_decode_temphum_two_byte_buffer_enters_the_frame_branch(self):
+        """At exactly two bytes, decode_temphum walks the frame and keeps its bytes."""
         result = decode_temphum("10#E1B0")
-        assert result["rssi"] is not None
         assert result["raw_bytes"] == bytes.fromhex("E1B0")
 
     def test_decode_unknown_two_byte_buffer_enters_the_rssi_branch(self):
@@ -1874,17 +1875,19 @@ class TestBasicDecoderShortBufferBranches:
         assert result["type"] == "co2"
         assert result["rssi"] is None
 
-    def test_decode_co2_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch."""
+    def test_decode_co2_short_buffer_leaves_readings_none(self):
+        """0-byte buffer skips the field walk."""
         result = decode_co2("10#")
         assert result["type"] == "co2"
-        assert result["rssi"] is None
+        assert result["co2"] is None
+        assert "raw_bytes" not in result
 
-    def test_decode_temphum_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch (HCS014ARF)."""
+    def test_decode_temphum_short_buffer_leaves_readings_none(self):
+        """0-byte buffer skips the field walk (HCS014ARF)."""
         result = decode_temphum("10#")
         assert result["type"] == "temphum"
-        assert result["rssi"] is None
+        assert result["tempcurrent"] is None
+        assert "raw_bytes" not in result
 
     def test_decode_pool_short_buffer_leaves_readings_none(self):
         """0-byte buffer skips the field walk (HCS0528ARF)."""
@@ -1919,13 +1922,13 @@ class TestBasicDecoderLogAndSwallowBranches:
         """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
         result = decode_co2("garbage_no_separator")
         assert result["type"] == "co2"
-        assert result["rssi"] is None
+        assert result["co2"] is None
 
     def test_decode_temphum_swallows_parse_error(self):
         """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed (HCS014ARF)."""
         result = decode_temphum("garbage_no_separator")
         assert result["type"] == "temphum"
-        assert result["rssi"] is None
+        assert result["tempcurrent"] is None
 
     def test_decode_pool_swallows_parse_error(self):
         """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed (HCS0528ARF)."""
@@ -3134,3 +3137,132 @@ class TestPayloadsStayOutOfLogs:
                 raised = str(exc)
 
         assert self.MARKER not in (self._everything_logged(caplog) + raised).upper()
+
+
+class TestClimateDecoders:
+    """HCS014ARF and HCS0530THO readings, against real frames in both framings."""
+
+    def test_temphum_hex_reads_every_entity_key(self):
+        """Current, low and high all come from their own records."""
+        result = decode_temphum(SAMPLE_HCS014ARF_HEX)
+        assert result["tempcurrent"] == 15.2
+        assert (result["templow"], result["temphigh"]) == (14.8, 27.0)
+        assert result["humiditycurrent"] == 67
+        assert (result["humiditylow"], result["humidityhigh"]) == (37, 97)
+        assert result["battery_flag"] == 1
+        assert result["report_time"] == "2026-04-05T23:01:10"
+
+    def test_temphum_ascii_reads_every_entity_key(self):
+        """The ASCII reading is current(high/low/n), in Fahrenheit x 10 for temperature."""
+        result = decode_temphum(SAMPLE_HCS014ARF_ASCII)
+        assert result["tempcurrent"] == 16.8
+        assert (result["templow"], result["temphigh"]) == (15.3, 18.1)
+        assert result["humiditycurrent"] == 87
+        assert (result["humiditylow"], result["humidityhigh"]) == (78, 96)
+
+    def test_co2_hex_reads_every_entity_key(self):
+        """The low word of STA_CO2 is the reading; 1500 in its high word must not leak in."""
+        result = decode_co2(SAMPLE_HCS0530THO_HEX)
+        assert result["co2"] == 456
+        assert (result["co2low"], result["co2high"]) == (415, 499)
+        assert result["co2temp"] == 27.4
+        assert result["co2humidity"] == 54
+        assert result["battery_flag"] == 1
+        assert result["report_time"] == "2026-03-29T11:38:47"
+
+    def test_co2_ascii_reads_every_entity_key(self):
+        """The ASCII CO2 token leads with the same little-endian word as the hex record."""
+        result = decode_co2(SAMPLE_HCS0530THO_ASCII)
+        assert result["co2"] == 486
+        assert (result["co2low"], result["co2high"]) == (437, 754)
+        assert result["co2temp"] == 22.7
+        assert result["co2humidity"] == 54
+
+    @pytest.mark.parametrize("payload", [SAMPLE_HCS0530THO_HEX, SAMPLE_HCS0530THO_HEX_2, SAMPLE_HCS0530THO_ASCII])
+    def test_co2_reading_sits_inside_its_range(self, payload):
+        """Swapped or misaligned low and high records would break this ordering."""
+        result = decode_co2(payload)
+        assert result["co2low"] <= result["co2"] <= result["co2high"]
+
+    @pytest.mark.parametrize("payload", [SAMPLE_HCS014ARF_HEX, SAMPLE_HCS014ARF_ASCII])
+    def test_temphum_readings_sit_inside_their_ranges(self, payload):
+        """Swapped or misaligned low and high records would break this ordering."""
+        result = decode_temphum(payload)
+        assert result["templow"] <= result["tempcurrent"] <= result["temphigh"]
+        assert result["humiditylow"] <= result["humiditycurrent"] <= result["humidityhigh"]
+
+    def test_temperature_below_freezing_stays_negative(self):
+        """STA_TEM and its range are signed, so -10.0 F must not read near 6550 F."""
+        result = decode_temphum("10#E79CFF9CFF859CFF")
+        assert result["tempcurrent"] == -23.3
+        assert (result["templow"], result["temphigh"]) == (-23.3, -23.3)
+
+    def test_ascii_temperature_below_freezing_stays_negative(self):
+        """The ASCII framing carries the same signed reading."""
+        result = decode_temphum("1,0,1;-100(-90/-110/1),50(60/40/1),")
+        assert (result["tempcurrent"], result["temphigh"], result["templow"]) == (-23.3, -22.8, -23.9)
+
+    @pytest.mark.parametrize("decode", [decode_co2, decode_temphum])
+    def test_frame_without_climate_records_reads_unknown(self, decode):
+        """A frame with only a battery record fabricates no reading."""
+        result = decode("10#DC01DC01")
+        assert result["battery_flag"] == 1
+        assert not {
+            key: value for key, value in result.items() if key.startswith(("co2", "temp", "humidity")) and value is not None
+        }
+
+    def test_short_range_record_reads_unknown(self):
+        """A range record too short for a low and a high yields neither."""
+        result = decode_temphum("10#E5010203")
+        assert (result["templow"], result["temphigh"]) == (None, None)
+
+    @pytest.mark.parametrize("payload", ["10#CC05", "10#CDC801", "10#CEC801DC"])
+    def test_short_co2_record_reads_unknown(self, payload):
+        """STA_CO2 is four bytes wide, so anything shorter is not a reading."""
+        assert decode_co2(payload)["co2"] is None
+
+    def test_ascii_bad_token_costs_only_that_reading(self):
+        """An unparsable temperature leaves the humidity beside it intact."""
+        result = decode_temphum("1,0,1;garbled,87(96/78/1),")
+        assert result["tempcurrent"] is None
+        assert result["humiditycurrent"] == 87
+
+    def test_ascii_body_with_one_token_reads_no_humidity(self):
+        """A body cut short after the temperature leaves humidity unknown."""
+        result = decode_temphum("1,0,1;622(645/595/1)")
+        assert result["tempcurrent"] == 16.8
+        assert result["humiditycurrent"] is None
+
+    def test_ascii_without_co2_token_reads_no_co2(self):
+        """The temperature and humidity survive a frame with no CO2 token."""
+        result = decode_co2("1,0,1;728(759/723/1),54(57/44/1)")
+        assert result["co2temp"] == 22.7
+        assert result["co2"] is None
+
+    @pytest.mark.parametrize("token", ["C=nothex", "C=E601(754/437)", "C=E601DC05FF(754/437)"])
+    def test_ascii_bad_co2_token_reads_no_co2(self, token):
+        """A CO2 token that is not exactly two words reads unknown."""
+        assert decode_co2(f"1,0,1;728(759/723/1),54(57/44/1),{token}")["co2"] is None
+
+    @pytest.mark.parametrize(
+        ("decode", "payload"),
+        [(decode_co2, SAMPLE_HCS0530THO_ASCII), (decode_temphum, SAMPLE_HCS014ARF_ASCII)],
+    )
+    def test_ascii_keeps_the_raw_payload(self, decode, payload):
+        """ASCII frames carry raw_bytes, as the hex path and other ASCII decoders do."""
+        assert decode(payload)["raw_bytes"] == payload.encode("ascii")
+
+    def test_ascii_header_reading_becomes_rssi(self):
+        """A negative header value is a signal reading."""
+        assert decode_temphum("1,-73,1;622(645/595/1),87(96/78/1),")["rssi_dbm"] == -73
+
+    @pytest.mark.parametrize("decode", [decode_co2, decode_temphum])
+    def test_no_rssi_from_a_frame_that_carries_none(self, decode):
+        """Byte 1 of these frames is a reading, so no signal value may come from it."""
+        result = decode(SAMPLE_HCS0530THO_HEX)
+        assert "rssi" not in result
+        assert "rssi_dbm" not in result
+
+    def test_ascii_header_of_zero_is_no_reading(self):
+        """The samples' header of 0 means no signal value, not 0 dBm."""
+        assert "rssi_dbm" not in decode_temphum(SAMPLE_HCS014ARF_ASCII)
