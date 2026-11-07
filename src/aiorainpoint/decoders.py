@@ -12,14 +12,19 @@ from typing import Any
 
 from .utils import (
     STA_BAT_FIELD,
+    STA_CO2_FIELD,
+    STA_CO2_RANGE_FIELD,
     STA_CUR_FLOW_FIELD,
     STA_DURATION_FIELD,
     STA_EVTIME_FIELD,
     STA_LAST_DURATION_FIELD,
     STA_LASTUSAGE_FIELD,
     STA_RAIN_FIELD,
+    STA_RH_FIELD,
+    STA_RH_RANGE_FIELD,
     STA_RSSI_FIELD,
     STA_TEM_FIELD,
+    STA_TEM_RANGE_FIELD,
     STA_TOTAL_TODAY_FIELD,
     STA_VFLOW_FIELD,
     STA_WATER_TOTAL_FIELD,
@@ -30,10 +35,12 @@ from .utils import (
     _find_field_value,
     _is_dp_id_framed,
     _le16,
+    _parse_ascii_rssi,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
     _RecordSummary,
     f10_to_c,
+    is_ascii_payload,
     parse_entries,
     valid_rssi_dbm,
 )
@@ -1504,6 +1511,65 @@ def decode_flow_meter(raw: str) -> dict:
 decode_flowmeter = decode_flow_meter
 
 
+# ASCII climate readings: current(high/low/n), then CO2 as C=<two LE words>(high/low).
+_ASCII_CLIMATE_READING = re.compile(r"(-?\d+)\((-?\d+)/(-?\d+)/\d+\)")
+_ASCII_CO2_READING = re.compile(r"C=([0-9A-Fa-f]{4})[0-9A-Fa-f]*\((\d+)/(\d+)\)")
+
+
+def _le_int(value_bytes: list[int], *, signed: bool = False) -> int:
+    """Read value bytes as one little-endian integer."""
+    return int.from_bytes(bytes(value_bytes), "little", signed=signed)
+
+
+def _tenths_c(temp_f10: int | None) -> float | None:
+    """Convert F*10 to Celsius at the one decimal the RainPoint app shows, passing None through."""
+    return None if temp_f10 is None else round(f10_to_c(temp_f10), 1)
+
+
+def _range_pair(b: bytes, field: int, width: int, *, signed: bool = False) -> tuple[int | None, int | None]:
+    """Return the (low, high) packed in a range record, or (None, None) if it is absent or malformed."""
+    value_bytes = _find_field_value(b, field)
+    if value_bytes is None or len(value_bytes) != 2 * width:
+        return None, None
+    return _le_int(value_bytes[:width], signed=signed), _le_int(value_bytes[width:], signed=signed)
+
+
+def _attach_frame_status(result: dict, b: bytes) -> None:
+    """Add the raw bytes, battery and report time every climate frame carries."""
+    result["raw_bytes"] = b
+    battery_flag = _extract_battery_flag(b)
+    result["battery_flag"] = battery_flag
+    result["battery_percent"] = battery_flag_to_percent(battery_flag)
+    _attach_report_time(result, b)
+
+
+def _attach_ascii_rssi(result: dict, raw: str) -> None:
+    """Add rssi_dbm from the ASCII header, leaving it absent when the header has no reading."""
+    rssi = _parse_ascii_rssi(raw)
+    if rssi is not None:
+        result["rssi_dbm"] = rssi
+
+
+def _climate_ascii_readings(raw: str) -> tuple[list[int | None], list[int | None], list[int | None]]:
+    """Return ASCII temperature, humidity and CO2 readings, each as [current, high, low].
+
+    A token that does not parse reads as all None, so one bad field cannot cost
+    the others. The positions come from the samples; the frame does not label them.
+    """
+    tokens = raw.split(";", 1)[-1].split(",")
+    readings: list[list[int | None]] = []
+    for token in tokens[:2]:
+        match = _ASCII_CLIMATE_READING.fullmatch(token)
+        readings.append([int(group) for group in match.groups()] if match else [None, None, None])
+    readings += [[None, None, None]] * (2 - len(readings))
+
+    co2: list[int | None] = [None, None, None]
+    match = _ASCII_CO2_READING.fullmatch(tokens[2]) if len(tokens) > 2 else None
+    if match:
+        co2 = [_le_int(list(bytes.fromhex(match[1]))), int(match[2]), int(match[3])]
+    return readings[0], readings[1], co2
+
+
 def decode_pool_plus(raw: str) -> dict:
     """Decode HCS0530THO (pool plus with CO2)."""
 
@@ -1534,21 +1600,42 @@ def decode_pool_plus(raw: str) -> dict:
 
 
 def decode_co2(raw: str) -> dict:
-    """Decode CO2 sensor."""
+    """Decode the HCS0530THO CO2, temperature and humidity payload.
+
+    STA_CO2 is declared U32, but only its low word is the reading: the high word
+    held 1500 on every sample, as does the ASCII form's second word.
+    """
 
     _LOGGER.debug("Decoding CO2 sensor")
 
     result: dict[str, Any] = {
         "type": "co2",
-        "rssi": None,
-        "decoder": "basic",
+        "decoder": "co2",
+        "co2": None,
+        "co2low": None,
+        "co2high": None,
+        "co2temp": None,
+        "co2humidity": None,
     }
 
     try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
+        if is_ascii_payload(raw):
+            temp, humidity, co2 = _climate_ascii_readings(raw)
+            result["co2temp"] = _tenths_c(temp[0])
+            result["co2humidity"] = humidity[0]
+            result["co2"], result["co2high"], result["co2low"] = co2
+            _attach_ascii_rssi(result, raw)
+        else:
+            b = _parse_rainpoint_payload(raw)
+            if b and len(b) > 1:
+                _attach_frame_status(result, b)
+                temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
+                result["co2temp"] = _tenths_c(temp_f10)
+                result["co2humidity"] = _find_field_int(b, STA_RH_FIELD)
+                reading = _find_field_value(b, STA_CO2_FIELD)
+                if reading is not None and len(reading) >= 2:
+                    result["co2"] = _le_int(reading[:2])
+                result["co2low"], result["co2high"] = _range_pair(b, STA_CO2_RANGE_FIELD, 2)
 
     except Exception:
         _LOGGER.exception("Error in CO2 decoder")
@@ -1581,21 +1668,37 @@ def decode_unknown(raw: str) -> dict:
 
 # Additional HCS decoders - basic implementations
 def decode_temphum(raw: str) -> dict:
-    """Decode HCS014ARF (temperature/humidity) payload."""
+    """Decode the HCS014ARF temperature and humidity payload."""
 
     _LOGGER.debug("Decoding HCS014ARF")
 
     result: dict[str, Any] = {
         "type": "temphum",
-        "rssi": None,
-        "decoder": "basic",
+        "decoder": "temphum",
+        "tempcurrent": None,
+        "temphigh": None,
+        "templow": None,
+        "humiditycurrent": None,
+        "humidityhigh": None,
+        "humiditylow": None,
     }
 
     try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
+        if is_ascii_payload(raw):
+            temp, humidity, _ = _climate_ascii_readings(raw)
+            result["tempcurrent"], result["temphigh"], result["templow"] = map(_tenths_c, temp)
+            result["humiditycurrent"], result["humidityhigh"], result["humiditylow"] = humidity
+            _attach_ascii_rssi(result, raw)
+        else:
+            b = _parse_rainpoint_payload(raw)
+            if b and len(b) > 1:
+                _attach_frame_status(result, b)
+                temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
+                result["tempcurrent"] = _tenths_c(temp_f10)
+                low, high = _range_pair(b, STA_TEM_RANGE_FIELD, 2, signed=True)
+                result["templow"], result["temphigh"] = _tenths_c(low), _tenths_c(high)
+                result["humiditycurrent"] = _find_field_int(b, STA_RH_FIELD)
+                result["humiditylow"], result["humidityhigh"] = _range_pair(b, STA_RH_RANGE_FIELD, 1)
 
     except Exception:
         _LOGGER.exception("Error in HCS014ARF decoder")
