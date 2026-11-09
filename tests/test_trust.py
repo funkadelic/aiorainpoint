@@ -22,6 +22,10 @@ class TestIsHandWrittenModel:
         """The display hub is decoded by hand too."""
         assert is_hand_written_model(MODEL_DISPLAY_HUB) is True
 
+    def test_true_for_htp115frf(self):
+        """The HTP115FRF has a hand-written decoder, so it stays off the generic path."""
+        assert is_hand_written_model("HTP115FRF") is True
+
     def test_false_for_unsupported_model(self):
         """An unsupported model is exactly what the generic path is for."""
         assert is_hand_written_model("SOME_UNSUPPORTED_MODEL") is False

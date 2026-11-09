@@ -50,6 +50,7 @@ MODEL_HTV445FRF = "HTV445FRF"  # 4-zone irrigation valve variant (similar to HTV
 MODEL_HTV0540FRF = "HTV0540FRF"  # Multi-zone valve hub (fully supported)
 MODEL_HTV157B = "HTV157B"  # Single-outlet water timer; same 10# frame as the HTV113FRF/HTV145FRF, 4-byte duration
 MODEL_HTP160FRF = "HTP160FRF"  # Single-outlet RF water timer; same 10# frame again, with no STA_LASTUSAGE record
+MODEL_HTP115FRF = "HTP115FRF"  # Solar houseplant watering timer; the HTP160FRF frame plus a STA_LASTUSAGE record
 MODEL_HTV210B = "HTV210B"  # Bluetooth valve; reports over RF as a normal hub sub-device once hub-paired
 MODEL_HIC801W = "HIC801W"  # 8-station irrigation controller; catalog variant 279 is the accessory
 # record carrying the stations, while 278 is the pairable main record with no ports.
@@ -92,6 +93,7 @@ HAND_WRITTEN_MODELS: frozenset[str] = frozenset(
         MODEL_VALVE_445,
         MODEL_HTV157B,
         MODEL_HTP160FRF,
+        MODEL_HTP115FRF,
         MODEL_HTV210B,
         MODEL_HIC801W,
         MODEL_HCS005FRF,
