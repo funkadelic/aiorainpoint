@@ -65,6 +65,7 @@ from tests.payload_samples import (
     SAMPLE_HIC801W_REPORTER_FRAMES,
     SAMPLE_HIC801W_SECOND_UNIT_FRAMES,
     SAMPLE_HIC801W_STATION3_PAYLOAD,
+    SAMPLE_HTP115_IDLE_PAYLOAD,
     SAMPLE_HTP160_IDLE_PAYLOAD,
     SAMPLE_HTV113_IDLE_PAYLOAD,
     SAMPLE_HTV145_AFTER_RUN_PAYLOAD,
@@ -806,6 +807,25 @@ class TestDecodeHtp160frf:
 
         assert STA_LASTUSAGE_FIELD not in records
         assert decode_htv145frf(SAMPLE_HTP160_IDLE_PAYLOAD)["zones"][1]["duration_seconds"] == 0
+
+
+class TestDecodeHtp115frf:
+    """HTP115FRF (issue #327) shares the single-outlet 10# framing."""
+
+    def test_idle_payload(self):
+        """Real idle payload: zone 1 closed, duration 0s, RSSI -52 dBm, usage record read."""
+        result = decode_htv145frf(SAMPLE_HTP115_IDLE_PAYLOAD)
+
+        assert result["decoder"] == "htv145frf_hex"
+        assert result["rssi_dbm"] == -52
+        assert result["battery_flag"] == 1
+        assert result["report_time"] == "2026-11-08T13:41:13"
+
+        assert set(result["zones"]) == {1}
+        zone = result["zones"][1]
+        assert zone["open"] is False
+        assert zone["duration_seconds"] == 0
+        assert zone["last_usage_counts"] == 50
 
 
 class TestLittleEndianTripwire:
