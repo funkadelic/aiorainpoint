@@ -115,6 +115,8 @@ async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = 
         if resp.status != 200:
             raise RainPointApiError(f"fetch_product_catalog HTTP {resp.status}")
         data = await resp.json()
+    if not isinstance(data, dict):
+        raise RainPointApiError(f"fetch_product_catalog returned a {type(data).__name__}, not an object")
     _LOGGER.debug("API response: fetch_product_catalog code=%s", data.get("code"))
     if data.get("code") != 0:
         _LOGGER.debug("fetch_product_catalog failed response: %s", _RecordSummary(data))

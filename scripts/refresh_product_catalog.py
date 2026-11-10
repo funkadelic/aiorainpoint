@@ -267,7 +267,14 @@ async def _fetch_trimmed_catalog(timeout_seconds: float) -> dict:
     print(f"Fetching the RainPoint catalog (timeout {timeout_seconds:g}s)...", file=sys.stderr)
     timeout = aiohttp.ClientTimeout(total=timeout_seconds)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        raw = await fetch_product_catalog(session)
+        try:
+            raw = await fetch_product_catalog(session)
+        except TimeoutError:
+            print(
+                f"Timed out after {timeout_seconds:g}s. Retry, or raise the limit with --timeout.",
+                file=sys.stderr,
+            )
+            raise
     print(f"Fetched {len(raw)} RainPoint model entries.", file=sys.stderr)
     dropped = dropped_model_prefixes(raw)
     if dropped:

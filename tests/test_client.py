@@ -2171,14 +2171,24 @@ class TestFetchProductCatalog:
     @pytest.mark.asyncio
     async def test_api_error_code(self):
         """A non-zero API code raises RainPointApiError."""
+        session = self._session({"code": 1, "msg": "bad"})
         with pytest.raises(RainPointApiError, match="fetch_product_catalog failed: code 1"):
-            await fetch_product_catalog(self._session({"code": 1, "msg": "bad"}))
+            await fetch_product_catalog(session)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [[], "nonsense", None])
+    async def test_non_object_response_raises(self, body):
+        """A 200 whose JSON is not an object raises the client's error rather than an AttributeError."""
+        session = self._session(body)
+        with pytest.raises(RainPointApiError, match="not an object"):
+            await fetch_product_catalog(session)
 
     @pytest.mark.asyncio
     async def test_http_error(self):
         """A non-200 HTTP status raises RainPointApiError."""
+        session = self._session({}, status=500)
         with pytest.raises(RainPointApiError, match="fetch_product_catalog HTTP 500"):
-            await fetch_product_catalog(self._session({}, status=500))
+            await fetch_product_catalog(session)
 
     @pytest.mark.asyncio
     async def test_request_carries_no_auth_token(self):
@@ -2201,6 +2211,9 @@ class TestFetchProductCatalog:
 
         assert await client.get_product_catalog() == []
         client.ensure_logged_in.assert_not_awaited()
+        args, kwargs = client._session.get.call_args
+        assert args == (f"{client._base_url}/app/common/core/productModel",)
+        assert "auth" not in kwargs["headers"]
 
 
 class TestTrimCatalog:
@@ -2634,6 +2647,19 @@ class TestRefreshScriptMain:
         assert "Dropped 1 entry outside the kept model prefixes" in captured.err
         assert "HRS x1" in captured.err
         assert captured.out == ""
+
+    def test_fetch_timeout_names_the_flag(self, monkeypatch, capsys):
+        """A fetch past --timeout says how to raise the limit before the traceback."""
+        import aiorainpoint.client as client_module
+
+        async def _stalled(session):
+            raise TimeoutError
+
+        monkeypatch.setattr(client_module, "fetch_product_catalog", _stalled)
+
+        with pytest.raises(TimeoutError):
+            asyncio.run(refresh_product_catalog._fetch_trimmed_catalog(5.0))
+        assert "raise the limit with --timeout" in capsys.readouterr().err
 
     def test_check_reports_drift_on_a_non_empty_pull(self, monkeypatch):
         """A non-empty pull still routes through the normal drift report."""
