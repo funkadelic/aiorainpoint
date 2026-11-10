@@ -7,6 +7,7 @@ import pytest
 
 import aiorainpoint
 import aiorainpoint.generic_decoder as generic_decoder_module
+import aiorainpoint.models as models_module
 import aiorainpoint.utils as utils_module
 import aiorainpoint.validators as validators_module
 
@@ -170,10 +171,15 @@ class TestConsumedSubmoduleNames:
 
     @pytest.mark.parametrize("module_name", sorted(CONSUMED_SUBMODULE_NAMES))
     def test_every_consumed_name_resolves(self, module_name):
-        """Checks presence only, so adding a model never breaks this."""
+        """Checks presence; exactness for models is the next test."""
         module = importlib.import_module(module_name)
         missing = sorted(name for name in CONSUMED_SUBMODULE_NAMES[module_name] if not hasattr(module, name))
         assert missing == []
+
+    def test_models_public_names_match_the_list_exactly(self):
+        """ha-rainpoint uses every public name in models, so a new model constant fails here until it is listed."""
+        public = {name for name in vars(models_module) if not name.startswith("_")}
+        assert public == CONSUMED_SUBMODULE_NAMES["aiorainpoint.models"]
 
 
 class TestRemovedNames:
