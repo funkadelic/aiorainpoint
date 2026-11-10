@@ -1,11 +1,13 @@
 """Pins the public surface: the exact export set and a docstring on everything in it."""
 
+import importlib
 import inspect
 
 import pytest
 
 import aiorainpoint
 import aiorainpoint.generic_decoder as generic_decoder_module
+import aiorainpoint.models as models_module
 import aiorainpoint.utils as utils_module
 import aiorainpoint.validators as validators_module
 
@@ -109,6 +111,75 @@ class TestPublicNames:
             and name not in aiorainpoint.__all__
         ]
         assert leaked == []
+
+
+# Names ha-rainpoint imports from submodules rather than the package root.
+CONSUMED_SUBMODULE_NAMES = {
+    "aiorainpoint.models": {
+        "HAND_WRITTEN_MODELS",
+        "MODEL_CO2",
+        "MODEL_DISPLAY_HUB",
+        "MODEL_FLOWMETER",
+        "MODEL_HCS005FRF",
+        "MODEL_HCS008FRF",
+        "MODEL_HCS012ARF",
+        "MODEL_HCS014ARF",
+        "MODEL_HCS015ARF",
+        "MODEL_HCS015ARF_PLUS",
+        "MODEL_HCS021FRF",
+        "MODEL_HCS024FRF_V1",
+        "MODEL_HCS026FRF",
+        "MODEL_HCS044FRF",
+        "MODEL_HCS0528ARF",
+        "MODEL_HCS0530THO",
+        "MODEL_HIC801W",
+        "MODEL_HTP115FRF",
+        "MODEL_HTP160FRF",
+        "MODEL_HTV0540FRF",
+        "MODEL_HTV113FRF",
+        "MODEL_HTV145FRF",
+        "MODEL_HTV157B",
+        "MODEL_HTV210B",
+        "MODEL_HTV213FRF",
+        "MODEL_HTV245FRF",
+        "MODEL_HTV345FRF",
+        "MODEL_HTV405FRF",
+        "MODEL_HTV445FRF",
+        "MODEL_HWS019WRF_V2",
+        "MODEL_MOISTURE_FULL",
+        "MODEL_MOISTURE_SIMPLE",
+        "MODEL_POOL",
+        "MODEL_POOL_PLUS",
+        "MODEL_RAIN",
+        "MODEL_TEMPHUM",
+        "MODEL_VALVE_113",
+        "MODEL_VALVE_145",
+        "MODEL_VALVE_213",
+        "MODEL_VALVE_245",
+        "MODEL_VALVE_345",
+        "MODEL_VALVE_405",
+        "MODEL_VALVE_445",
+        "MODEL_VALVE_HUB",
+    },
+    "aiorainpoint.mqtt": {"RainPointMqttClient"},
+    "aiorainpoint.product_catalog": {"UNCODED_VARIANT"},
+}
+
+
+class TestConsumedSubmoduleNames:
+    """Submodule paths ha-rainpoint imports are public too, so removing or renaming one fails here before a release."""
+
+    @pytest.mark.parametrize("module_name", sorted(CONSUMED_SUBMODULE_NAMES))
+    def test_every_consumed_name_resolves(self, module_name):
+        """Checks presence; exactness for models is the next test."""
+        module = importlib.import_module(module_name)
+        missing = sorted(name for name in CONSUMED_SUBMODULE_NAMES[module_name] if not hasattr(module, name))
+        assert missing == []
+
+    def test_models_public_names_match_the_list_exactly(self):
+        """ha-rainpoint uses every public name in models, so a new model constant fails here until it is listed."""
+        public = {name for name in vars(models_module) if not name.startswith("_")}
+        assert public == CONSUMED_SUBMODULE_NAMES["aiorainpoint.models"]
 
 
 class TestRemovedNames:
