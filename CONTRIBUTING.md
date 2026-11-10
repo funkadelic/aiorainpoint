@@ -96,7 +96,7 @@ After the release, the integration side is in ha-rainpoint's [CONTRIBUTING.md](h
 
 ## Scripts
 
-`scripts/` holds maintainer tools that talk to the real cloud. They read credentials from the environment (`RAINPOINT_EMAIL`, `RAINPOINT_PASSWORD`), never from a committed file. Use a second account, because the cloud keeps one session per account.
+`scripts/` holds maintainer tools that talk to the real cloud. They read credentials from the environment (`RAINPOINT_EMAIL`, `RAINPOINT_PASSWORD`), never from a committed file. Use a second account, because the cloud keeps one session per account. `refresh_product_catalog.py` is the exception. The catalog endpoint needs no login, so the script takes no credentials.
 
 ## Versioning
 

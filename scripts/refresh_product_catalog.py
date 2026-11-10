@@ -4,40 +4,28 @@
 The integration ships a committed snapshot of RainPoint's product-model
 catalog at src/aiorainpoint/data/product_catalog.json and
 never fetches it from RainPoint at runtime. This script is the maintainer
-tool that keeps that snapshot up to date: it authenticates with a
-maintainer's own RainPoint credentials, pulls the live catalog, trims it
-down to the fields the client actually uses, and either writes the
-result to the committed file or diffs it against what is already committed.
+tool that keeps that snapshot up to date: it pulls the live catalog, which
+needs no login, trims it down to the fields the client actually uses, and
+either writes the result to the committed file or diffs it against what is
+already committed.
 
 Usage:
-    RAINPOINT_EMAIL=you@example.com RAINPOINT_PASSWORD=secret \\
-        python scripts/refresh_product_catalog.py
-
-    RAINPOINT_EMAIL=you@example.com RAINPOINT_PASSWORD=secret \\
-        python scripts/refresh_product_catalog.py --check
-
-Credentials are always read from the environment (RAINPOINT_EMAIL,
-RAINPOINT_PASSWORD, and optionally RAINPOINT_AREA_CODE) or passed as CLI
-arguments. Never hardcode credentials in this file or in a committed config.
+    python scripts/refresh_product_catalog.py
+    python scripts/refresh_product_catalog.py --check
 
 Write mode (the default) overwrites the committed catalog file with a fresh,
 trimmed pull. --check mode never writes; it prints a drift summary and exits
 nonzero when the committed file no longer matches a live pull, so it is safe
 to run on a schedule in CI.
 
-Exit codes: 0 clean, 1 drift or a refused write, 2 missing credentials, 3 the
-server rate-limited every login attempt. A throttled login is retried inside
-the run, waiting out the cooldown the server implies, so 3 means it stayed
-throttled rather than that it was seen once.
+Exit codes: 0 clean, 1 drift, a failed fetch or a refused write.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import getpass
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -91,23 +79,9 @@ _KEPT_IDENTITY_PREFIXES = ("STA_", "CTL_")
 # are several models this integration genuinely supports.
 _KEPT_PROVENANCE_FIELDS = ("hasDistribution", "isMainDevice", "accessoryFlag")
 
-# Total seconds allowed for login plus the catalog fetch. Well above the
-# fraction of a second the endpoint normally takes, and far below aiohttp's
-# five-minute default, which is long enough that a stalled run looks wedged.
+# Seconds allowed for the catalog fetch. Far below aiohttp's five-minute
+# default, which is long enough that a stalled run looks wedged.
 _DEFAULT_TIMEOUT_SECONDS = 90.0
-
-# A throttled login is the server saying "operate too frequently", not a
-# credential problem and not catalog drift, and it is what failed the
-# 2026-09-07 weekly run. The error carries the cooldown the server implied, so
-# the run waits it out rather than losing a whole week's check to a transient
-# refusal. Three attempts against a 120s cooldown fits inside the workflow's
-# own 10-minute job budget with room to spare.
-_LOGIN_ATTEMPTS = 3
-# Added to the cooldown the client reports, so a retry lands after it has
-# expired rather than exactly on the boundary. The client arms its own cooldown
-# clock and fast-fails without a network call while it is running, so a retry
-# that is even slightly early spends an attempt on nothing.
-_LOGIN_RETRY_MARGIN_SECONDS = 5.0
 
 # Bucket key for RainPoint entries carrying no modelCode. Duplicated from
 # src/aiorainpoint/product_catalog.py rather than imported, so
@@ -262,11 +236,7 @@ def _print_drift(committed: dict, fresh: dict) -> bool:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Build the CLI parser and parse argv (defaults to sys.argv).
-
-    Credentials default to their environment variables so the scheduled CI
-    job needs no arguments at all.
-    """
+    """Build the CLI parser and parse argv (defaults to sys.argv)."""
     parser = argparse.ArgumentParser(
         description="Regenerate the committed RainPoint product catalog from a live RainPoint pull.",
     )
@@ -275,147 +245,29 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Diff the committed catalog against a fresh live pull and exit nonzero on drift, without writing.",
     )
-    parser.add_argument("--email", default=os.environ.get("RAINPOINT_EMAIL"), help="RainPoint account email (or RAINPOINT_EMAIL)")
-    # There is deliberately no --password flag: a password passed on the command
-    # line lands in argv, shell history, and CI process listings. The password
-    # comes from RAINPOINT_PASSWORD for automation, or an interactive prompt.
-    parser.add_argument(
-        "--area-code",
-        # "or" rather than a get() default: CI exports an unset optional secret
-        # as an empty string, which would otherwise beat the default.
-        default=os.environ.get("RAINPOINT_AREA_CODE") or "1",
-        help="Phone-dial-style area code the RainPoint login expects, e.g. 1 for US (or RAINPOINT_AREA_CODE)",
-    )
     parser.add_argument(
         "--timeout",
         type=float,
         default=_DEFAULT_TIMEOUT_SECONDS,
-        help=f"Seconds to wait for login plus catalog fetch before giving up (default {_DEFAULT_TIMEOUT_SECONDS:g})",
+        help=f"Seconds to wait for the catalog fetch before giving up (default {_DEFAULT_TIMEOUT_SECONDS:g})",
     )
     return parser.parse_args(argv)
 
 
-def _resolve_password() -> str | None:
-    """Return the password from RAINPOINT_PASSWORD, else prompt interactively.
+async def _fetch_trimmed_catalog(timeout_seconds: float) -> dict:
+    """Pull the live catalog without logging in and return it trimmed.
 
-    Returns None when the env var is unset and stdin is not a TTY, which is the
-    non-interactive CI case: the caller reports a missing credential instead of
-    blocking forever on a prompt nobody can answer.
-    """
-    password = os.environ.get("RAINPOINT_PASSWORD")
-    if password:
-        return password
-    if not sys.stdin.isatty():
-        return None
-    return getpass.getpass("RainPoint account password: ") or None
-
-
-class CatalogFetchThrottled(Exception):
-    """Every login attempt was refused by the server's rate limiter.
-
-    Script-local rather than the client's own RainPointThrottledError so main()
-    can catch it without importing the component at module scope, which is what
-    keeps trim_catalog importable on its own for tests.
-    """
-
-
-async def _fetch_raw_catalog(email: str, password: str, area_code: str, timeout_seconds: float) -> list:
-    """Log in and pull the RainPoint product catalog once, untrimmed.
-
-    One attempt, with its own session and client: the client arms a login
-    cooldown on a throttle and fast-fails against it, so a retry gets a fresh
-    instance rather than one already holding a cooldown clock.
-
-    The fetch carries two deadlines because they bound different things. The
-    session timeout caps a single request, since the component's client sets
-    none and a bare session would inherit aiohttp's five-minute default. The
-    catalog is around half a megabyte and normally arrives in under a second;
-    five silent minutes reads as a wedged process and gets killed by hand long
-    before it would ever fail on its own.
-
-    That cap alone is not what --timeout promises. get_product_catalog issues
-    two requests, the login and the catalog GET, and a per-request budget lets
-    each of them spend the full value, so a slow login plus a slow fetch runs
-    past the stated limit and then reports the wrong number. The outer wait_for
-    makes --timeout the deadline for this attempt, which is what its help text
-    describes.
-
-    aiohttp and the client are imported here rather than at module scope:
-    this is the only code path that needs them.
+    aiohttp and the client are imported here so trim_catalog stays importable
+    without them. Progress goes to stderr so --check output stays pipeable.
     """
     import aiohttp
 
-    from aiorainpoint.client import RainPointClient
+    from aiorainpoint.client import fetch_product_catalog
 
+    print(f"Fetching the RainPoint catalog (timeout {timeout_seconds:g}s)...", file=sys.stderr)
     timeout = aiohttp.ClientTimeout(total=timeout_seconds)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        client = RainPointClient(area_code, email, password, session)
-        try:
-            return await asyncio.wait_for(client.get_product_catalog(), timeout_seconds)
-        except TimeoutError:
-            print(
-                f"Timed out after {timeout_seconds:g}s. Login or the catalog fetch did not finish in that "
-                f"budget; retry, or raise the limit with --timeout.",
-                file=sys.stderr,
-            )
-            raise
-
-
-async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, timeout_seconds: float) -> dict:
-    """Log in, pull the RainPoint product catalog, and return it trimmed.
-
-    aiohttp and the client are imported here rather than at module scope:
-    this is the only code path that needs them, which keeps trim_catalog
-    importable on its own for tests.
-
-    The fetch carries two deadlines because they bound different things. The
-    session timeout caps a single request, since the component's client sets
-    none and a bare session would inherit aiohttp's five-minute default. The
-    catalog is around half a megabyte and normally arrives in under a second;
-    five silent minutes reads as a wedged process and gets killed by hand long
-    before it would ever fail on its own.
-
-    That cap alone is not what --timeout promises. get_product_catalog issues
-    two requests, the login and the catalog GET, and a per-request budget lets
-    each of them spend the full value, so a slow login plus a slow fetch runs
-    past the stated limit and then reports the wrong number. The outer wait_for
-    makes --timeout the end-to-end deadline its help text describes.
-
-    Retries a throttled login, waiting out the cooldown the server implied.
-    Every other failure is left to propagate: a wrong password, a DNS failure
-    or a timeout do not get better by being repeated.
-
-    The progress lines exist for the same reason as the deadlines: without
-    them, login, fetch, and diff are indistinguishable from a hang. Both go to
-    stderr so --check output stays pipeable.
-    """
-    from aiorainpoint.client import RainPointThrottledError
-
-    raw: list | None = None
-    for attempt in range(1, _LOGIN_ATTEMPTS + 1):
-        suffix = f" (attempt {attempt} of {_LOGIN_ATTEMPTS})" if attempt > 1 else ""
-        print(
-            f"Logging in and fetching the RainPoint catalog (timeout {timeout_seconds:g}s){suffix}...",
-            file=sys.stderr,
-        )
-        try:
-            raw = await _fetch_raw_catalog(email, password, area_code, timeout_seconds)
-            break
-        except RainPointThrottledError as err:
-            if attempt == _LOGIN_ATTEMPTS:
-                raise CatalogFetchThrottled(
-                    f"RainPoint refused all {_LOGIN_ATTEMPTS} login attempts with its rate limiter. "
-                    f"Nothing is wrong with the credentials or the committed catalog; retry later."
-                ) from err
-            wait_seconds = err.retry_after + _LOGIN_RETRY_MARGIN_SECONDS
-            print(
-                f"RainPoint is rate-limiting logins; waiting {wait_seconds:.0f}s before retrying.",
-                file=sys.stderr,
-            )
-            await asyncio.sleep(wait_seconds)
-
-    # The loop above either breaks with a pull or raises.
-    assert raw is not None
+        raw = await fetch_product_catalog(session)
     print(f"Fetched {len(raw)} RainPoint model entries.", file=sys.stderr)
     dropped = dropped_model_prefixes(raw)
     if dropped:
@@ -431,28 +283,9 @@ async def _fetch_trimmed_catalog(email: str, password: str, area_code: str, time
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the refresh, returning a process exit code.
-
-    0 on a successful write or a clean --check, 1 on drift or a refused
-    write, 2 when credentials are missing, 3 when the server rate-limited
-    every login attempt.
-
-    3 is its own code because it is the one failure that says nothing about
-    the catalog: a caller reading 1 as "the snapshot needs attention" would be
-    wrong about a throttled run, which asks only to be run again later.
-    """
+    """Run the refresh, returning a process exit code: 0 on a write or a clean --check, else 1."""
     args = _parse_args(argv)
-
-    password = _resolve_password()
-    if not args.email or not password:
-        print("RAINPOINT_EMAIL (env var or --email) and RAINPOINT_PASSWORD (env var) are required.", file=sys.stderr)
-        return 2
-
-    try:
-        trimmed = asyncio.run(_fetch_trimmed_catalog(args.email, password, args.area_code, args.timeout))
-    except CatalogFetchThrottled as err:
-        print(str(err), file=sys.stderr)
-        return 3
+    trimmed = asyncio.run(_fetch_trimmed_catalog(args.timeout))
 
     if args.check:
         # An empty pull means the fetch failed, not that RainPoint dropped

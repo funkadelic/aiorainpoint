@@ -98,6 +98,36 @@ class RainPointThrottledError(RainPointApiError):
         self.retry_after = retry_after
 
 
+_BASE_URL = "https://region3.homgarus.com"
+
+
+async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = _BASE_URL) -> list[dict]:
+    """Fetch RainPoint's productModel catalog as a list of model entries, without logging in.
+
+    The endpoint needs no auth token, so this never touches an account session.
+    Its "data" is an object whose "models" key holds the entries; a bare list
+    is passed through, and any other shape yields [].
+    """
+    url = f"{base_url}/app/common/core/productModel"
+    _LOGGER.debug("API call: fetch_product_catalog URL=%s", url)
+    headers = {"appCode": "2", "lang": "en", "User-Agent": _USER_AGENT}
+    async with session.get(url, headers=headers) as resp:
+        if resp.status != 200:
+            raise RainPointApiError(f"fetch_product_catalog HTTP {resp.status}")
+        data = await resp.json()
+    _LOGGER.debug("API response: fetch_product_catalog code=%s", data.get("code"))
+    if data.get("code") != 0:
+        _LOGGER.debug("fetch_product_catalog failed response: %s", _RecordSummary(data))
+        raise RainPointApiError(f"fetch_product_catalog failed: code {data.get('code')}")
+    payload = data.get("data") or []
+    if isinstance(payload, dict):
+        payload = payload.get("models") or []
+    if not isinstance(payload, list):
+        _LOGGER.debug("fetch_product_catalog returned an unusable data shape: %s", type(payload).__name__)
+        return []
+    return payload
+
+
 class RainPointClient:
     """The RainPoint cloud API client every read and write in this integration goes through.
 
@@ -131,8 +161,7 @@ class RainPointClient:
         # network login attempts until it passes.
         self._login_cooldown_until: datetime | None = None
 
-        # region host: you had region3; we can later make this configurable
-        self._base_url = "https://region3.homgarus.com"
+        self._base_url = _BASE_URL
 
         # Listeners notified when the HTTP layer rotates its token via a
         # re-login (not the initial login). Kept decoupled from any
@@ -429,40 +458,8 @@ class RainPointClient:
         return data.get("data") or []
 
     async def get_product_catalog(self) -> list[dict]:
-        """Fetch RainPoint's full productModel catalog as a list of model entries.
-
-        Used only by the maintainer refresh script (scripts/refresh_product_catalog.py)
-        to regenerate the committed, trimmed catalog snapshot -- the running
-        integration never calls this at runtime.
-
-        The endpoint does not return a bare list. Its "data" is an object whose
-        "models" key holds the per-model entries, alongside catalog-wide keys
-        ("version", "addGroups", "replaceGroups", "codePushKeys") the snapshot
-        does not use. This unwraps to the models list so callers get the one
-        shape they care about. A "data" that is already a list is passed
-        through, so a future response shape that drops the envelope keeps
-        working.
-        """
-        await self.ensure_logged_in()
-        url = f"{self._base_url}/app/common/core/productModel"
-        _LOGGER.debug("API call: get_product_catalog URL=%s", url)
-        request_token = self._token
-        async with self._session.get(url, headers=self._auth_headers()) as resp:
-            if resp.status != 200:
-                raise RainPointApiError(f"get_product_catalog HTTP {resp.status}")
-            data = await resp.json()
-        _LOGGER.debug("API response: get_product_catalog code=%s", data.get("code"))
-        if data.get("code") != 0:
-            self._maybe_invalidate_token(data.get("code"), request_token)
-            _LOGGER.debug("get_product_catalog failed response: %s", _RecordSummary(data))
-            raise RainPointApiError(f"get_product_catalog failed: code {data.get('code')}")
-        payload = data.get("data") or []
-        if isinstance(payload, dict):
-            payload = payload.get("models") or []
-        if not isinstance(payload, list):
-            _LOGGER.debug("get_product_catalog returned an unusable data shape: %s", type(payload).__name__)
-            return []
-        return payload
+        """Fetch the product catalog over this client's session; see fetch_product_catalog."""
+        return await fetch_product_catalog(self._session, self._base_url)
 
     async def get_devices_by_hid(self, hid: int) -> list[dict]:
         """Return one home's hub records, each carrying its ``subDevices``; ``hid`` is the id list_homes reports."""
