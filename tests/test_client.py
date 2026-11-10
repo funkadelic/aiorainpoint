@@ -2657,8 +2657,9 @@ class TestRefreshScriptMain:
 
         monkeypatch.setattr(client_module, "fetch_product_catalog", _stalled)
 
+        fetch = refresh_product_catalog._fetch_trimmed_catalog(5.0)
         with pytest.raises(TimeoutError):
-            asyncio.run(refresh_product_catalog._fetch_trimmed_catalog(5.0))
+            asyncio.run(fetch)
         assert "raise the limit with --timeout" in capsys.readouterr().err
 
     def test_check_reports_drift_on_a_non_empty_pull(self, monkeypatch):
