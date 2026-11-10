@@ -14,7 +14,7 @@ import pytest
 import aiorainpoint.client as _client_module
 import aiorainpoint.product_catalog as product_catalog
 from aiorainpoint import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
-from aiorainpoint.client import _SESSION_REJECTED_CODES, _USER_AGENT
+from aiorainpoint.client import _SESSION_REJECTED_CODES, _USER_AGENT, fetch_product_catalog
 from aiorainpoint.mqtt import RainPointMqttError
 from aiorainpoint.utils import _redact_secret
 from tests.helpers import make_mock_session_client, mock_json_response
@@ -1872,8 +1872,8 @@ class RainPointClient:
         in_scope, missing = self._scan()
 
         # Guards against a parsing change making this vacuously green: the
-        # scan must actually have found the eleven methods it exists to cover.
-        assert len(in_scope) >= 11
+        # scan must actually have found the ten methods it exists to cover.
+        assert len(in_scope) >= 10
         assert missing == []
 
     def test_the_scan_flags_a_method_that_omits_the_predicate(self):
@@ -2140,123 +2140,80 @@ class TestListHomes:
         assert client._token_expires_at is None
 
 
-class TestGetProductCatalog:
-    """Tests for get_product_catalog API method (maintainer refresh tooling only)."""
+class TestFetchProductCatalog:
+    """Tests for fetch_product_catalog (maintainer refresh tooling only)."""
+
+    @staticmethod
+    def _session(json_body, status=200):
+        session = MagicMock()
+        session.get = MagicMock(return_value=_mock_response(json_body, status=status))
+        return session
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_success(self):
-        """get_product_catalog opens with ensure_logged_in and returns data on code 0."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        json_body = {
-            "code": 0,
-            "data": [{"model": "HTV245FRF", "dp": [{"dpCode": 9, "identity": "STA_TEM"}]}],
-        }
-        client._session.get = MagicMock(return_value=_mock_response(json_body))
-
-        result = await client.get_product_catalog()
-
-        client.ensure_logged_in.assert_awaited_once()
-        assert result == json_body["data"]
-
-    @pytest.mark.asyncio
-    async def test_get_product_catalog_unwraps_the_models_envelope(self):
-        """The live endpoint wraps the model list in an object; the list is what callers want.
-
-        The real response is {"models": [...], "version": ..., "addGroups": [],
-        "replaceGroups": [], "codePushKeys": []}. Returning that object
-        unchanged makes trim_catalog iterate dict keys and fail on the first
-        entry, which is exactly what shipped before this test existed.
-        """
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
+    async def test_returns_a_bare_list(self):
+        """A data list is returned as is."""
         models = [{"model": "HTV245FRF", "dp": [{"dpCode": 9, "identity": "STA_TEM"}]}]
-        json_body = {
-            "code": 0,
-            "data": {
-                "models": models,
-                "version": 1784773919607,
-                "addGroups": [],
-                "replaceGroups": [],
-                "codePushKeys": [],
-            },
-        }
-        client._session.get = MagicMock(return_value=_mock_response(json_body))
-
-        assert await client.get_product_catalog() == models
+        assert await fetch_product_catalog(self._session({"code": 0, "data": models})) == models
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_envelope_without_models_is_empty(self):
-        """An envelope carrying no models list yields [], not a raise."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": {"version": 1}}))
-
-        assert await client.get_product_catalog() == []
+    async def test_unwraps_the_models_envelope(self):
+        """The live endpoint wraps the list in an object; returning the object broke trim_catalog once."""
+        models = [{"model": "HTV245FRF", "dp": []}]
+        body = {"code": 0, "data": {"models": models, "version": 1784773919607, "addGroups": []}}
+        assert await fetch_product_catalog(self._session(body)) == models
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_unusable_data_shape_is_empty(self):
-        """A data payload that is neither list nor object degrades to [] rather than raising.
-
-        The refresh script already refuses to write an empty catalog, so an
-        empty return is a safe failure; a raise mid-pull is not.
-        """
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": "nonsense"}))
-
-        assert await client.get_product_catalog() == []
+    @pytest.mark.parametrize("data", [{"version": 1}, "nonsense"])
+    async def test_unusable_shape_is_empty(self, data):
+        """An envelope without models, or a non-list, degrades to [] for the script's empty-pull guard."""
+        assert await fetch_product_catalog(self._session({"code": 0, "data": data})) == []
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_api_error_code(self):
+    async def test_api_error_code(self):
         """A non-zero API code raises RainPointApiError."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        json_body = {"code": 1, "msg": "bad"}
-        client._session.get = MagicMock(return_value=_mock_response(json_body))
-
-        with pytest.raises(RainPointApiError, match="get_product_catalog failed: code 1"):
-            await client.get_product_catalog()
+        session = self._session({"code": 1, "msg": "bad"})
+        with pytest.raises(RainPointApiError, match="fetch_product_catalog failed: code 1"):
+            await fetch_product_catalog(session)
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_http_error(self):
+    @pytest.mark.parametrize("body", [[], "nonsense", None])
+    async def test_non_object_response_raises(self, body):
+        """A 200 whose JSON is not an object raises the client's error rather than an AttributeError."""
+        session = self._session(body)
+        with pytest.raises(RainPointApiError, match="not an object"):
+            await fetch_product_catalog(session)
+
+    @pytest.mark.asyncio
+    async def test_http_error(self):
         """A non-200 HTTP status raises RainPointApiError."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-
-        client._session.get = MagicMock(return_value=_mock_response({}, status=500))
-
-        with pytest.raises(RainPointApiError, match="get_product_catalog HTTP 500"):
-            await client.get_product_catalog()
+        session = self._session({}, status=500)
+        with pytest.raises(RainPointApiError, match="fetch_product_catalog HTTP 500"):
+            await fetch_product_catalog(session)
 
     @pytest.mark.asyncio
-    async def test_get_product_catalog_requests_the_expected_url_and_headers(self):
-        """The GET call names the real URL and carries the auth headers, nothing dropped."""
+    async def test_request_carries_no_auth_token(self):
+        """The request names the real URL and sends no auth header, so no account session is involved."""
+        session = self._session({"code": 0, "data": []})
+        await fetch_product_catalog(session)
+
+        args, kwargs = session.get.call_args
+        assert args == ("https://region3.homgarus.com/app/common/core/productModel",)
+        assert "auth" not in kwargs["headers"]
+        assert kwargs["headers"]["appCode"] == "2"
+        assert not kwargs["headers"]["User-Agent"].startswith("HomeAssistant")
+
+    @pytest.mark.asyncio
+    async def test_client_method_delegates_without_logging_in(self):
+        """get_product_catalog on a client never logs in, so it cannot displace the account's session."""
         client = _make_client()
         client.ensure_logged_in = AsyncMock()
         client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": []}))
 
-        await client.get_product_catalog()
-
+        assert await client.get_product_catalog() == []
+        client.ensure_logged_in.assert_not_awaited()
         args, kwargs = client._session.get.call_args
         assert args == (f"{client._base_url}/app/common/core/productModel",)
-        assert kwargs == {"headers": client._auth_headers()}
-
-    @pytest.mark.asyncio
-    async def test_get_product_catalog_error_path_invalidates_the_matching_token(self):
-        """A session-rejection code expires the token that made this request."""
-        client = _make_client()
-        client.ensure_logged_in = AsyncMock()
-        client._token_expires_at = datetime.now(UTC) + timedelta(hours=1)
-        client._session.get = MagicMock(return_value=_mock_response({"code": 1001, "msg": "NOT_TOKEN"}))
-
-        with pytest.raises(RainPointApiError, match="get_product_catalog failed: code 1001"):
-            await client.get_product_catalog()
-
-        assert client._token_expires_at is None
+        assert "auth" not in kwargs["headers"]
 
 
 class TestTrimCatalog:
@@ -2598,25 +2555,14 @@ class TestRefreshScriptMain:
 
     @staticmethod
     def _stub_fetch(monkeypatch, trimmed, captured: dict | None = None):
-        """Replace the script's network fetch with one returning trimmed.
+        """Replace the script's network fetch with one returning trimmed; captured records the timeout."""
 
-        Mirrors the real signature including timeout_seconds, so a caller that
-        stops threading the timeout through fails here rather than only against
-        the live endpoint. Pass captured to inspect the arguments main() used.
-        """
-
-        async def _fake_fetch(email, password, area_code, timeout_seconds):
+        async def _fake_fetch(timeout_seconds):
             if captured is not None:
-                captured.update(email=email, password=password, area_code=area_code, timeout_seconds=timeout_seconds)
+                captured["timeout_seconds"] = timeout_seconds
             return trimmed
 
         monkeypatch.setattr(refresh_product_catalog, "_fetch_trimmed_catalog", _fake_fetch)
-
-    @staticmethod
-    def _stub_credentials(monkeypatch):
-        """Set the env vars main() requires before it will do any work."""
-        monkeypatch.setenv("RAINPOINT_EMAIL", "user@example.com")
-        monkeypatch.setenv("RAINPOINT_PASSWORD", "secret")
 
     @staticmethod
     def _forbid_write(monkeypatch):
@@ -2629,7 +2575,6 @@ class TestRefreshScriptMain:
 
     def test_write_refuses_empty_pull(self, monkeypatch, capsys):
         """An empty live pull never overwrites the committed catalog."""
-        self._stub_credentials(monkeypatch)
         self._stub_fetch(monkeypatch, {})
         self._forbid_write(monkeypatch)
         monkeypatch.setattr(refresh_product_catalog, "_load_committed_catalog", lambda path: {"HCS777ARF": []})
@@ -2639,7 +2584,6 @@ class TestRefreshScriptMain:
 
     def test_write_refuses_drastic_model_drop(self, monkeypatch, capsys):
         """A pull that loses more than half the committed models is refused."""
-        self._stub_credentials(monkeypatch)
         self._stub_fetch(monkeypatch, {"HTV245FRF": []})
         self._forbid_write(monkeypatch)
         monkeypatch.setattr(
@@ -2653,7 +2597,6 @@ class TestRefreshScriptMain:
 
     def test_write_persists_a_healthy_pull(self, monkeypatch, capsys):
         """A pull that clears both guards is written and reported."""
-        self._stub_credentials(monkeypatch)
         self._stub_fetch(monkeypatch, {"HTV245FRF": [], "HCS021FRF": []})
         monkeypatch.setattr(refresh_product_catalog, "_load_committed_catalog", lambda path: {"HTV245FRF": []})
         written = {}
@@ -2665,7 +2608,6 @@ class TestRefreshScriptMain:
 
     def test_check_treats_empty_pull_as_fetch_failure(self, monkeypatch, capsys):
         """--check reports a fetch failure rather than "every model removed"."""
-        self._stub_credentials(monkeypatch)
         self._stub_fetch(monkeypatch, {})
 
         def _explode(committed, fresh):
@@ -2677,13 +2619,7 @@ class TestRefreshScriptMain:
         assert "treating as a fetch failure, not drift" in capsys.readouterr().err
 
     def test_timeout_defaults_and_is_overridable(self, monkeypatch):
-        """The fetch is always given an explicit deadline, and --timeout overrides it.
-
-        Without one the session inherits aiohttp's five-minute default, which is
-        long enough that a stalled pull looks like a wedged process and gets
-        killed by hand before it ever fails.
-        """
-        self._stub_credentials(monkeypatch)
+        """The fetch always gets an explicit deadline, and --timeout overrides it."""
         monkeypatch.setattr(refresh_product_catalog, "_load_committed_catalog", lambda path: {"HTV245FRF": []})
 
         captured: dict = {}
@@ -2691,196 +2627,47 @@ class TestRefreshScriptMain:
         refresh_product_catalog.main(["--check"])
         assert captured["timeout_seconds"] == refresh_product_catalog._DEFAULT_TIMEOUT_SECONDS
 
-        captured.clear()
         self._stub_fetch(monkeypatch, {"HTV245FRF": []}, captured)
         refresh_product_catalog.main(["--check", "--timeout", "5"])
         assert captured["timeout_seconds"] == 5.0
 
-    def test_timeout_bounds_the_whole_fetch_not_each_request(self, monkeypatch, capsys):
-        """--timeout bounds one attempt's login plus fetch, not each request in it.
-
-        get_product_catalog logs in and then fetches, so the session's
-        per-request cap would let a slow login and a slow fetch together run
-        well past the stated limit. The stub never returns, so only an outer
-        deadline can end this.
-        """
+    def test_fetch_trims_and_reports_dropped_prefixes_on_stderr(self, monkeypatch, capsys):
+        """The filter's refusals reach stderr, so --check stdout stays the drift summary CI captures."""
         import aiorainpoint.client as client_module
 
-        class _StalledClient:
-            def __init__(self, area_code, email, password, session):
-                pass
+        async def _fake_catalog(session):
+            return [{"model": "HTV245FRF", "modelCode": 303, "dp": []}, {"model": "HRS900X"}]
 
-            async def get_product_catalog(self):
-                await asyncio.sleep(30)
-                raise AssertionError("the outer deadline never fired")
+        monkeypatch.setattr(client_module, "fetch_product_catalog", _fake_catalog)
 
-        monkeypatch.setattr(client_module, "RainPointClient", _StalledClient)
-
-        fetch = refresh_product_catalog._fetch_trimmed_catalog("user@example.com", "secret", "1", 0.05)
-        with pytest.raises(TimeoutError):
-            asyncio.run(fetch)
-        assert "Timed out after 0.05s" in capsys.readouterr().err
-
-    @staticmethod
-    def _stub_throttling_client(monkeypatch, failures: int, retry_after: float = 120.0):
-        """Make the first `failures` catalog pulls raise the server's throttle error.
-
-        Constructed per attempt, mirroring the real code: the client arms its
-        own cooldown clock on a throttle, so a retry that reused the instance
-        would fast-fail against that clock instead of reaching the server.
-        """
-        import aiorainpoint.client as client_module
-
-        state = {"attempts": 0}
-
-        class _ThrottlingClient:
-            def __init__(self, area_code, email, password, session):
-                pass
-
-            async def get_product_catalog(self):
-                state["attempts"] += 1
-                if state["attempts"] <= failures:
-                    raise RainPointThrottledError("Login rate-limited (code 9993)", retry_after)
-                return [{"model": "HTV245FRF", "modelCode": 303, "dp": []}]
-
-        monkeypatch.setattr(client_module, "RainPointClient", _ThrottlingClient)
-        return state
-
-    @staticmethod
-    def _capture_sleeps(monkeypatch):
-        """Replace asyncio.sleep with a recorder, so a retry test does not wait."""
-        slept: list[float] = []
-
-        async def _fake_sleep(seconds):
-            slept.append(seconds)
-
-        monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
-        return slept
-
-    def test_throttled_login_is_retried_and_then_succeeds(self, monkeypatch, capsys):
-        """A transient rate limit costs a wait, not the run.
-
-        This is the failure that lost the 2026-09-07 weekly check: the server
-        refused the login with its "operate too frequently" code and the run
-        ended there, so the snapshot went unchecked for a week over something
-        that clears in two minutes.
-        """
-        state = self._stub_throttling_client(monkeypatch, failures=1)
-        slept = self._capture_sleeps(monkeypatch)
-
-        trimmed = asyncio.run(refresh_product_catalog._fetch_trimmed_catalog("user@example.com", "secret", "1", 5.0))
-
-        assert state["attempts"] == 2
-        assert trimmed == {"HTV245FRF": {"303": {"portNumber": None, "dp": []}}}
-        # The cooldown the error reported, plus the margin that keeps the retry
-        # off the boundary the client's own cooldown clock is measured against.
-        assert slept == [120.0 + refresh_product_catalog._LOGIN_RETRY_MARGIN_SECONDS]
-        assert "rate-limiting logins" in capsys.readouterr().err
-
-    def test_persistent_throttling_raises_its_own_error(self, monkeypatch):
-        """Every attempt refused is a distinct failure, not a timeout or a bad password."""
-        state = self._stub_throttling_client(monkeypatch, failures=99)
-        self._capture_sleeps(monkeypatch)
-
-        fetch = refresh_product_catalog._fetch_trimmed_catalog("user@example.com", "secret", "1", 5.0)
-        with pytest.raises(refresh_product_catalog.CatalogFetchThrottled):
-            asyncio.run(fetch)
-
-        assert state["attempts"] == refresh_product_catalog._LOGIN_ATTEMPTS
-
-    def test_persistent_throttling_exits_3_and_writes_nothing(self, monkeypatch, capsys):
-        """Exit 3 says "not checked", where 1 would say "the snapshot needs attention".
-
-        A caller cannot tell those apart from a traceback, which is all this
-        used to produce, and the CI step reads the code to decide what to
-        report.
-        """
-        self._stub_credentials(monkeypatch)
-        self._forbid_write(monkeypatch)
-        self._stub_throttling_client(monkeypatch, failures=99)
-        self._capture_sleeps(monkeypatch)
-
-        assert refresh_product_catalog.main([]) == 3
-        assert "rate limiter" in capsys.readouterr().err
-
-    def test_dropped_prefixes_are_reported_on_stderr(self, monkeypatch, capsys):
-        """The filter's refusals reach the run's output, not just the tally function.
-
-        On stderr with the other progress lines, so --check stdout stays the
-        drift summary the CI step captures on its own.
-        """
-        import aiorainpoint.client as client_module
-
-        class _MixedClient:
-            def __init__(self, area_code, email, password, session):
-                pass
-
-            async def get_product_catalog(self):
-                return [{"model": "HTV245FRF", "modelCode": 303, "dp": []}, {"model": "HRS900X"}]
-
-        monkeypatch.setattr(client_module, "RainPointClient", _MixedClient)
-
-        asyncio.run(refresh_product_catalog._fetch_trimmed_catalog("user@example.com", "secret", "1", 5.0))
+        trimmed = asyncio.run(refresh_product_catalog._fetch_trimmed_catalog(5.0))
         captured = capsys.readouterr()
 
+        assert trimmed == {"HTV245FRF": {"303": {"portNumber": None, "dp": []}}}
         assert "Dropped 1 entry outside the kept model prefixes" in captured.err
         assert "HRS x1" in captured.err
         assert captured.out == ""
 
+    def test_fetch_timeout_names_the_flag(self, monkeypatch, capsys):
+        """A fetch past --timeout says how to raise the limit before the traceback."""
+        import aiorainpoint.client as client_module
+
+        async def _stalled(session):
+            raise TimeoutError
+
+        monkeypatch.setattr(client_module, "fetch_product_catalog", _stalled)
+
+        fetch = refresh_product_catalog._fetch_trimmed_catalog(5.0)
+        with pytest.raises(TimeoutError):
+            asyncio.run(fetch)
+        assert "raise the limit with --timeout" in capsys.readouterr().err
+
     def test_check_reports_drift_on_a_non_empty_pull(self, monkeypatch):
         """A non-empty pull still routes through the normal drift report."""
-        self._stub_credentials(monkeypatch)
         self._stub_fetch(monkeypatch, {"HTV245FRF": []})
         monkeypatch.setattr(refresh_product_catalog, "_load_committed_catalog", lambda path: {})
 
         assert refresh_product_catalog.main(["--check"]) == 1
-
-    def test_missing_credentials_exit_code(self, monkeypatch):
-        """No credentials and no TTY is a usage error, not a crash or a prompt."""
-        monkeypatch.delenv("RAINPOINT_EMAIL", raising=False)
-        monkeypatch.delenv("RAINPOINT_PASSWORD", raising=False)
-        monkeypatch.setattr(refresh_product_catalog.sys.stdin, "isatty", lambda: False)
-
-        assert refresh_product_catalog.main([]) == 2
-
-    def test_password_comes_from_env_without_prompting(self, monkeypatch):
-        """RAINPOINT_PASSWORD is used directly, never routed through a prompt."""
-        monkeypatch.setenv("RAINPOINT_PASSWORD", "from-env")
-        monkeypatch.setattr(
-            refresh_product_catalog.getpass,
-            "getpass",
-            lambda prompt="": pytest.fail("prompted despite RAINPOINT_PASSWORD being set"),
-        )
-
-        assert refresh_product_catalog._resolve_password() == "from-env"
-
-    def test_password_prompts_interactively_when_env_is_unset(self, monkeypatch):
-        """An interactive run with no env var falls back to a hidden prompt."""
-        monkeypatch.delenv("RAINPOINT_PASSWORD", raising=False)
-        monkeypatch.setattr(refresh_product_catalog.sys.stdin, "isatty", lambda: True)
-        monkeypatch.setattr(refresh_product_catalog.getpass, "getpass", lambda prompt="": "typed-in")
-
-        assert refresh_product_catalog._resolve_password() == "typed-in"
-
-    def test_password_is_none_when_prompt_is_empty(self, monkeypatch):
-        """An empty prompt response is treated as no password, not as an empty one."""
-        monkeypatch.delenv("RAINPOINT_PASSWORD", raising=False)
-        monkeypatch.setattr(refresh_product_catalog.sys.stdin, "isatty", lambda: True)
-        monkeypatch.setattr(refresh_product_catalog.getpass, "getpass", lambda prompt="": "")
-
-        assert refresh_product_catalog._resolve_password() is None
-
-    def test_area_code_defaults_when_env_var_is_empty(self, monkeypatch):
-        """CI exports an unset optional secret as "", which must not beat the default."""
-        monkeypatch.setenv("RAINPOINT_AREA_CODE", "")
-
-        assert refresh_product_catalog._parse_args([]).area_code == "1"
-
-    def test_area_code_honours_a_configured_value(self, monkeypatch):
-        """A populated RAINPOINT_AREA_CODE is passed through untouched."""
-        monkeypatch.setenv("RAINPOINT_AREA_CODE", "44")
-
-        assert refresh_product_catalog._parse_args([]).area_code == "44"
 
 
 class TestGetDevicesByHid:
