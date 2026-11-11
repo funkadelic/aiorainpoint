@@ -79,7 +79,7 @@ async def _dump(client, session, label: str, path: str, params: dict) -> None:
 async def _run(args: argparse.Namespace, password: str) -> int:
     import aiohttp
 
-    from aiorainpoint.client import RainPointClient
+    from aiorainpoint import RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:

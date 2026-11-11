@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import paho.mqtt.client as paho
 import pytest
 
-import aiorainpoint.mqtt as mqtt_module
-from aiorainpoint.mqtt import PushCoordinator, RainPointMqttClient, RainPointMqttError, _topic_kind
+import aiorainpoint._mqtt as mqtt_module
+from aiorainpoint._mqtt import PushCoordinator, RainPointMqttClient, RainPointMqttError, _topic_kind
 from tests.payload_samples import (
     SAMPLE_HUB_DISCONNECT_FRAME,
     SAMPLE_HUB_FRAME_MID,
@@ -258,7 +258,7 @@ class TestMessageReceiptLogging:
 
         with (
             patch.object(mqtt_module, "_payload_preview", wraps=mqtt_module._payload_preview) as preview,
-            caplog.at_level(logging.INFO, logger="aiorainpoint.mqtt"),
+            caplog.at_level(logging.INFO, logger="aiorainpoint._mqtt"),
         ):
             client._on_message(fake_paho, None, msg)
             await asyncio.sleep(0)
@@ -1106,7 +1106,7 @@ class TestSubDeviceEnvelopeMidAttribution:
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
         payload = json.dumps({"method": "thing.service.property.set", "params": {"param": param}, "version": "1.0.0"}).encode()
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._mqtt"):
             client._dispatch_push("topic", payload)
 
         coordinator.apply_push_update.assert_not_called()
@@ -1195,7 +1195,7 @@ class TestUnrecognisedShapeLogging:
         shape_a_repeat = b'{"method":"thing.service.property.set","params":{"BroadcastTime":2}}'
         shape_b = b"not-a-json-payload-at-all"
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._mqtt"):
             client._dispatch_push("topic", shape_a)
             client._dispatch_push("topic", shape_a_repeat)
             client._dispatch_push("topic", shape_b)
@@ -1216,7 +1216,7 @@ class TestUnrecognisedShapeLogging:
         payload = b"#P26073118173000001000000230001|9|9|9#"
 
         with (
-            caplog.at_level(logging.INFO, logger="aiorainpoint.mqtt"),
+            caplog.at_level(logging.INFO, logger="aiorainpoint._mqtt"),
             patch.object(mqtt_module, "_payload_preview") as preview,
         ):
             client._dispatch_push("topic", payload)
@@ -1231,7 +1231,7 @@ class TestUnrecognisedShapeLogging:
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
         limit = mqtt_module.MQTT_UNRECOGNISED_SHAPE_LOG_LIMIT
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._mqtt"):
             for i in range(limit + 2):
                 # A distinct pipe-count per iteration guarantees a distinct shape key.
                 payload = "|".join(["x"] * (i + 1)).encode()
@@ -1344,9 +1344,9 @@ class TestConnectCallbackHandling:
 def test_module_defines_to_redact_and_redact_helper():
     """TO_REDACT + a redaction helper are established from the first credential-issuing commit.
 
-    The helper was this module's own _redact() until it and client.py's
+    The helper was this module's own _redact() until it and _client.py's
     byte-identical _redact_secret() were collapsed into one shared
-    implementation in api/utils.py. What this test pins is unchanged: the
+    implementation in _utils.py. What this test pins is unchanged: the
     module reaches a redaction helper with the length-plus-last-4 behaviour,
     and TO_REDACT still names deviceSecret.
     """
@@ -2432,7 +2432,7 @@ class TestPushDispatchNeverRunsOnPahoThread:
 
     @staticmethod
     def _module():
-        """Return the parsed api/mqtt.py."""
+        """Return the parsed _mqtt.py."""
         return ast.parse(Path(mqtt_module.__file__).read_text(encoding="utf-8"))
 
     @staticmethod
@@ -2446,7 +2446,7 @@ class TestPushDispatchNeverRunsOnPahoThread:
         found: dict[str, ast.AST] = {}
         for node in ast.walk(module):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                assert node.name not in found, f"two functions named {node.name} in mqtt.py; the call graph cannot resolve it"
+                assert node.name not in found, f"two functions named {node.name} in _mqtt.py; the call graph cannot resolve it"
                 found[node.name] = node
         return found
 
@@ -2546,7 +2546,7 @@ class TestPushDispatchNeverRunsOnPahoThread:
         module = self._module()
         functions = self._functions(module)
         callbacks = self._paho_callbacks(module)
-        assert callbacks, "no paho on_* callback is wired in mqtt.py; this check would prove nothing"
+        assert callbacks, "no paho on_* callback is wired in _mqtt.py; this check would prove nothing"
 
         on_thread = self._walk(functions, callbacks)
         dispatching = sorted(on_thread & self._dispatch_sites(functions))
@@ -2578,7 +2578,7 @@ class TestPushDispatchNeverRunsOnPahoThread:
         after_the_hop = self._walk(functions, hopped)
         dispatch_sites = self._dispatch_sites(functions)
 
-        assert dispatch_sites, "nothing in mqtt.py pushes into coordinator data any more"
+        assert dispatch_sites, "nothing in _mqtt.py pushes into coordinator data any more"
         assert dispatch_sites <= after_the_hop, (
             f"{sorted(dispatch_sites - after_the_hop)} push into coordinator data from outside the hopped "
             "region, so no paho callback reaches them and nothing here says what thread they run on"
@@ -2608,7 +2608,7 @@ class TestUnreadableIdentityIsVisible:
         coordinator = MagicMock(spec=PushCoordinator)
         client = _make_push_client(MagicMock(), MagicMock(), coordinator)
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._mqtt"):
             client._dispatch_push("topic", self._overwide_hub_frame())
             client._dispatch_push("topic", self._overwide_hub_frame())
 
@@ -2628,7 +2628,7 @@ class TestUnreadableIdentityIsVisible:
         payload = json.dumps({"method": "thing.service.property.set", "params": {"param": param}, "version": "1.0.0"}).encode()
         client = _make_push_client(MagicMock(), MagicMock(), MagicMock(spec=PushCoordinator))
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._mqtt"):
             client._dispatch_push("topic", payload)
 
         assert any("unreadable" in r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
@@ -2639,7 +2639,7 @@ class TestUnreadableIdentityIsVisible:
         client = _make_push_client(MagicMock(), MagicMock(), MagicMock(spec=PushCoordinator))
         client._unrecognised_shapes = {f"filler-{i}" for i in range(mqtt_module.MQTT_UNRECOGNISED_SHAPE_LOG_LIMIT)}
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.mqtt"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._mqtt"):
             client._dispatch_push("topic", self._overwide_hub_frame())
 
         assert not [r for r in caplog.records if r.levelno == logging.WARNING]

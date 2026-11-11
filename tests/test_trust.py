@@ -3,11 +3,11 @@
 import ast
 from pathlib import Path
 
-import aiorainpoint.product_catalog as product_catalog_module
-import aiorainpoint.trust as trust_module
+import aiorainpoint._product_catalog as product_catalog_module
+import aiorainpoint._trust as trust_module
 from aiorainpoint import decode_generic, has_bluetooth_control_identity, is_hand_written_model
-from aiorainpoint.models import HAND_WRITTEN_MODELS, MODEL_DISPLAY_HUB
-from aiorainpoint.trust import BLUETOOTH_CONTROL_IDENTITY
+from aiorainpoint._trust import BLUETOOTH_CONTROL_IDENTITY
+from aiorainpoint.models import HAND_WRITTEN_MODELS, HWS019WRF_V2
 
 
 class TestIsHandWrittenModel:
@@ -20,7 +20,7 @@ class TestIsHandWrittenModel:
 
     def test_true_for_display_hub(self):
         """The display hub is decoded by hand too."""
-        assert is_hand_written_model(MODEL_DISPLAY_HUB) is True
+        assert is_hand_written_model(HWS019WRF_V2) is True
 
     def test_true_for_htp115frf(self):
         """The HTP115FRF has a hand-written decoder, so it stays off the generic path."""
@@ -41,7 +41,7 @@ class TestDecodeGenericSkipsHandWrittenModels:
     def test_hand_written_model_never_annotated_even_with_catalog_entry(self, monkeypatch):
         """Defense in depth: a hand-written model gets no annotation, even if it
         happened to have a matching catalog entry."""
-        import aiorainpoint.generic_decoder as generic_decoder_module
+        import aiorainpoint._generic_decoder as generic_decoder_module
 
         fake_catalog = [{"dpCode": 31, "identity": "STA_BAT", "dpPort": 1, "dpDataType": "uint8", "portNumber": 1}]
         # The stub must mirror get_catalog_entry's real (model, model_code)
@@ -51,8 +51,11 @@ class TestDecodeGenericSkipsHandWrittenModels:
         monkeypatch.setattr(generic_decoder_module, "get_catalog_entry", lambda model, model_code=None: fake_catalog)
 
         hand_written_model = next(iter(HAND_WRITTEN_MODELS))
-        result = decode_generic("10#DC", model=hand_written_model)
+        result = decode_generic("10#DC01", model=hand_written_model)
 
+        # The same frame is annotated for an unknown model, so an empty loop cannot pass.
+        assert any("catalog" in f for f in decode_generic("10#DC01", model="ZZUNKNOWN")["fields"])
+        assert result["fields"]
         for field in result["fields"]:
             assert "catalog" not in field
 

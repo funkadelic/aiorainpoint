@@ -4,9 +4,9 @@ import hashlib
 import logging
 from pathlib import Path
 
-import aiorainpoint.decoders as decoders_module
-import aiorainpoint.generic_decoder as generic_decoder_module
-import aiorainpoint.utils as api_utils_module
+import aiorainpoint._decoders as decoders_module
+import aiorainpoint._generic_decoder as generic_decoder_module
+import aiorainpoint._utils as api_utils_module
 from aiorainpoint import decode_generic, is_ascii_declined
 from tests.payload_samples import (
     CATALOG_ANCHOR_MODEL,
@@ -19,14 +19,14 @@ from tests.payload_samples import (
     SAMPLE_UNSUPPORTED_MULTI_SENSOR_PAYLOAD,
 )
 
-# src/aiorainpoint/decoders.py is the trusted reference the
+# src/aiorainpoint/_decoders.py is the trusted reference the
 # generic ASCII-framing decoder reads and must never edit. Pinned by
 # whole-file digest rather than a per-function comparison. Legitimate
 # hand-written decoder changes (most recently accepting the 01# prefix)
 # move this
 # hash forward on purpose; the guard exists to catch decode_generic and its
 # helpers reaching back into this file, not to freeze it.
-_DECODERS_PY_SHA256 = "dabc2364327938ee638e36fb4090735cd0f3989db906561db7688b0aee0bbe25"
+_DECODERS_PY_SHA256 = "94d42fcda1d7c4c1cc078a92574851e1d56b52cd96ef0cf393dd8e4804df6d17"
 
 
 class TestDecodeGenericTLV:
@@ -760,14 +760,14 @@ class TestAsciiFramingNonRegression:
     """Source-level pins: the trusted decoders and the no-ordering-table rule."""
 
     def test_decoders_py_digest_is_pinned(self):
-        """api/decoders.py is read for reference by decode_generic, never edited by it.
+        """_decoders.py is read for reference by decode_generic, never edited by it.
 
         Pinned by whole-file digest rather than relying on `git diff` alone,
         so a regression is caught by the test suite itself. Editing the
         trusted decoders is expected and moves this hash forward; see the
         constant's own note.
         """
-        source = Path(generic_decoder_module.__file__).parent / "decoders.py"
+        source = Path(generic_decoder_module.__file__).parent / "_decoders.py"
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
 
         assert digest == _DECODERS_PY_SHA256
@@ -808,7 +808,7 @@ class TestHic801wFieldConstantsExcludeWkstate:
     """decode_hic801w's structural field constants never name field index 30.
 
     Placed here rather than in test_decoders.py because this module already
-    reads decoders.py's own namespace structurally (see
+    reads _decoders.py's own namespace structurally (see
     TestAsciiFramingNonRegression.test_no_per_family_body_position_table_exists
     above), and this guard follows the same "absence over the module's own
     namespace" shape rather than a repo-wide grep. STA_WKSTATE is field index
@@ -853,7 +853,7 @@ class TestParseFailureLogging:
 
     def test_parse_failure_logs_no_payload(self, caplog):
         """The exception text can echo a fragment too, so only its type is logged."""
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.generic_decoder"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._generic_decoder"):
             result = decode_generic("10#zz00aabb", model="HTV245FRF")
 
         assert result["error"]

@@ -32,8 +32,8 @@ from typing import NamedTuple, Protocol, cast
 
 import paho.mqtt.client as paho_mqtt
 
-from .client import RainPointClient, RainPointError
-from .utils import _redact_identifier, _redact_secret
+from ._client import RainPointClient, RainPointError
+from ._utils import _redact_identifier, _redact_secret
 
 _LOGGER = logging.getLogger(__name__)
 

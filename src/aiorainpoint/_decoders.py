@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from .utils import (
+from ._utils import (
     STA_BAT_FIELD,
     STA_CO2_FIELD,
     STA_CO2_RANGE_FIELD,
@@ -44,7 +44,7 @@ from .utils import (
     parse_entries,
     valid_rssi_dbm,
 )
-from .validators import (
+from ._validators import (
     _extract_battery_flag,
     _extract_rssi,
     _validate_payload,
@@ -374,7 +374,7 @@ def _decode_htv213frf_hex(raw: str) -> dict:
 
 
 # dp_id of the RSSI record on dp_id-prefixed valve frames (HTV213 family and
-# HTV210B). The structural field indices these decoders read by live in utils.py.
+# HTV210B). The structural field indices these decoders read by live in _utils.py.
 _DP_RSSI = 0x17
 
 # The two duration record widths any capture has shown: 4 bytes on the HTV210B

@@ -13,7 +13,7 @@ from aiorainpoint import (
     splice_sub_power_mode,
     valid_rssi_dbm,
 )
-from aiorainpoint.utils import (
+from aiorainpoint._utils import (
     _base_decoder_dict,
     _extract_report_time,
     _find_field_int,
@@ -1010,7 +1010,7 @@ class TestRecordSummaryIsLazy:
             calls.append(record)
             return "summary"
 
-        monkeypatch.setattr("aiorainpoint.utils.summarize_record", _spy)
+        monkeypatch.setattr("aiorainpoint._utils.summarize_record", _spy)
         wrapper = _RecordSummary({"deviceName": "MAC-A0B0C0D00003"})
         assert calls == []
         assert str(wrapper) == "summary"
@@ -1029,7 +1029,7 @@ class TestRecordSummaryIsLazy:
 
     def test_a_debug_call_with_debug_off_never_builds_the_summary(self, caplog):
         """The end-to-end property, asserted through a real logger."""
-        logger = logging.getLogger("aiorainpoint.utils")
+        logger = logging.getLogger("aiorainpoint._utils")
         calls = []
 
         class _Counting(_RecordSummary):
@@ -1037,7 +1037,7 @@ class TestRecordSummaryIsLazy:
                 calls.append(1)
                 return "summary"
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.utils"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._utils"):
             logger.debug("record %s", _Counting({"a": 1}))
         assert calls == []
 

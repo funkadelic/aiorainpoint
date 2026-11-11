@@ -1,7 +1,7 @@
 """
 Generic, model-agnostic payload decoder for diagnostics.
 
-The per-model decoders in ``decoders.py`` are the trusted path: each is
+The per-model decoders in ``_decoders.py`` are the trusted path: each is
 reverse-engineered against captured hardware payloads and validated by tests.
 This module is deliberately the opposite - it decodes the *structure* of a
 payload without knowing the model, so an unsupported device still surfaces
@@ -18,8 +18,9 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import cast
 
-from .product_catalog import get_catalog_entry, get_catalog_port_number
-from .utils import _parse_ascii_rssi, is_ascii_payload, parse_entries, split_prefix
+from ._product_catalog import get_catalog_entry, get_catalog_port_number
+from ._trust import is_hand_written_model
+from ._utils import _parse_ascii_rssi, is_ascii_payload, parse_entries, split_prefix
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -441,20 +442,15 @@ def decode_generic(raw: str, model: str | None = None, model_code: int | str | N
             }
         )
 
-    if model:
-        # Defense in depth: decode_generic is normally only reached for
-        # unregistered models (see coordinator._decode_subdevice_payload), but
-        # guard here too so a hand-written model can never receive catalog
-        # annotation even if this function is reached directly. Imported
-        # locally to avoid a circular import (trust.py imports from models,
-        # not from this module).
-        from .trust import is_hand_written_model
-
-        if not is_hand_written_model(model):
-            try:
-                _annotate_fields_with_catalog(fields, model, dp_id_prefixed, model_code)
-            except Exception as exc:  # annotation must never break the diagnostic decode
-                _LOGGER.debug("Catalog annotation failed for model=%s: %s", model, exc)
+    # Defense in depth: decode_generic is normally only reached for
+    # unregistered models (see coordinator._decode_subdevice_payload), but
+    # guard here too so a hand-written model can never receive catalog
+    # annotation even if this function is reached directly.
+    if model and not is_hand_written_model(model):
+        try:
+            _annotate_fields_with_catalog(fields, model, dp_id_prefixed, model_code)
+        except Exception as exc:  # annotation must never break the diagnostic decode
+            _LOGGER.debug("Catalog annotation failed for model=%s: %s", model, exc)
 
     result["dp_id_prefixed"] = dp_id_prefixed
     result["fields"] = fields

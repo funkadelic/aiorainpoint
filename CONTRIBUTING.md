@@ -53,7 +53,7 @@ Every action in `.github/workflows/` is pinned to a full commit SHA with the ver
 
 ```bash
 uv pip install --group mutation                         # or: pip install --group mutation
-mutmut run --max-children 4 'aiorainpoint.utils.*'      # one module
+mutmut run --max-children 4 'aiorainpoint._utils.*'     # one module
 mutmut results                                          # what survived
 mutmut show MUTANT_NAME                                 # one of those names, and its exact change
 ```
@@ -63,7 +63,7 @@ Scope a run to the module you're working on. `mutants/` is the working copy mutm
 Pass `--max-children` with a number below your core count, because the default of one worker per core can saturate the machine. Some mutants also break a loop so it never ends, and that worker grows until mutmut's timeout stops it. On Linux or WSL with systemd, this keeps a runaway worker from taking the session down with it:
 
 ```bash
-systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4 'aiorainpoint.utils.*'
+systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4 'aiorainpoint._utils.*'
 ```
 
 A surviving mutant names a change to the source that no test objects to. Sometimes that means a missing assertion, and sometimes the line doesn't matter.
@@ -80,17 +80,17 @@ Underscore names stay private to their modules and are never re-exported. Removi
 
 Debug logs get pasted into public issues, so log lines on cloud-record paths carry only keys, integer counts, and the hardware model and model code. Never log `deviceName`, `productKey`, `iotId`, a MAC, a home or device name, the account email, or any other text from the cloud.
 
-Log anything else from a cloud record through `utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `utils._RecordSummary`, which does that work only when a handler formats the line.
+Log anything else from a cloud record through `_utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `_utils._RecordSummary`, which does that work only when a handler formats the line.
 
 ## Adding a new device model
 
 Model constants and decoders live here, so a new model starts in this repo and finishes in ha-rainpoint.
 
-1. Add `MODEL_XXX = "XXX"` to `models.py`, and add the model to `HAND_WRITTEN_MODELS`.
-2. Write `decode_xxx(raw: str) -> dict` in `decoders.py`, with a docstring. Return at least `type`, `rssi_dbm` and `raw_bytes`, plus any device-specific fields. Use `_parse_rainpoint_payload` and `_parse_tlv_payload` from `utils.py`.
-3. Add tests to `tests/test_decoders.py` that cover every branch of the decoder, with sample payloads in `tests/payload_samples.py`.
+1. Add `XXX = "XXX"` to `models.py` and to its `__all__`, then give it a `MODELS` row naming its decoder and family. A valve or controller row also states its duration unit and control endpoint. A model that reuses an existing frame needs nothing more here.
+2. Write `decode_xxx(raw: str) -> dict` in `_decoders.py`, with a docstring. Return at least `type`, `rssi_dbm` and `raw_bytes`, plus any device-specific fields. Use `_parse_rainpoint_payload` and `_parse_tlv_payload` from `_utils.py`.
+3. Add tests to `tests/test_decoders.py` that cover every branch of the decoder, with sample payloads in `tests/payload_samples.py`. Add the model and its frames to `CASES` in `tests/test_decoder_golden.py`, then run it with `UPDATE_GOLDEN=1`.
 4. Export it: add `decode_xxx` to `__init__.py` and to `EXPECTED_PUBLIC_NAMES`.
-5. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
+5. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/_decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
 
 After the release, the integration side is in ha-rainpoint's [CONTRIBUTING.md](https://github.com/funkadelic/ha-rainpoint/blob/main/CONTRIBUTING.md).
 

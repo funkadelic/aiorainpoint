@@ -15,7 +15,7 @@ from typing import Any
 
 import aiohttp
 
-from .utils import _RecordSummary
+from ._utils import _RecordSummary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,16 +101,22 @@ class RainPointThrottledError(RainPointApiError):
 _BASE_URL = "https://region3.homgarus.com"
 
 
-async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = _BASE_URL) -> list[dict]:
-    """Fetch RainPoint's productModel catalog as a list of model entries, without logging in.
+def _check_app_code(app_code: int) -> None:
+    if type(app_code) is not int or app_code not in (1, 2):
+        raise ValueError(f"app_code must be 1 (HomGar) or 2 (RainPoint), got {app_code!r}")
+
+
+async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = _BASE_URL, app_code: int = 2) -> list[dict]:
+    """Fetch the app_code app's productModel catalog as a list of model entries, without logging in.
 
     The endpoint needs no auth token, so this never touches an account session.
     Its "data" is an object whose "models" key holds the entries; a bare list
     is passed through, and any other shape yields [].
     """
+    _check_app_code(app_code)
     url = f"{base_url}/app/common/core/productModel"
     _LOGGER.debug("API call: fetch_product_catalog URL=%s", url)
-    headers = {"appCode": "2", "lang": "en", "User-Agent": _USER_AGENT}
+    headers = {"appCode": str(app_code), "lang": "en", "User-Agent": _USER_AGENT}
     async with session.get(url, headers=headers) as resp:
         if resp.status != 200:
             raise RainPointApiError(f"fetch_product_catalog HTTP {resp.status}")
@@ -137,13 +143,25 @@ class RainPointClient:
     demand, and exposes one method per cloud endpoint the client uses.
     """
 
-    def __init__(self, area_code: str, email: str, password: str, session: aiohttp.ClientSession):
-        """Bind a client to one account, over a caller-supplied aiohttp session."""
+    def __init__(
+        self,
+        area_code: str,
+        email: str,
+        password: str,
+        session: aiohttp.ClientSession,
+        *,
+        app_code: int = 2,
+    ):
+        """Bind a client to one account, over a caller-supplied aiohttp session.
+
+        app_code selects the vendor app the account belongs to: 2 for RainPoint, 1 for HomGar.
+        """
+        _check_app_code(app_code)
         self._area_code = area_code
         self._email = email
         self._password = password  # cleartext, HA will store
         self._session = session
-        self._app_code = "2"
+        self._app_code = str(app_code)
 
         _LOGGER.info("RainPointClient initialized with app_code: %s", self._app_code)
 
@@ -205,7 +223,7 @@ class RainPointClient:
         return {
             "auth": self._token,
             "lang": "en",
-            "appCode": self._app_code,  # Hardcoded to RainPoint appCode "2"
+            "appCode": self._app_code,
             "version": "1.16.1065",
             "sceneType": "1",
             "User-Agent": _USER_AGENT,
@@ -461,7 +479,7 @@ class RainPointClient:
 
     async def get_product_catalog(self) -> list[dict]:
         """Fetch the product catalog over this client's session; see fetch_product_catalog."""
-        return await fetch_product_catalog(self._session, self._base_url)
+        return await fetch_product_catalog(self._session, self._base_url, int(self._app_code))
 
     async def get_devices_by_hid(self, hid: int) -> list[dict]:
         """Return one home's hub records, each carrying its ``subDevices``; ``hid`` is the id list_homes reports."""
