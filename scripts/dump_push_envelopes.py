@@ -261,7 +261,7 @@ def _build_dumping_client_class():
     Built inside a function so the package is imported only when a dump
     actually runs.
     """
-    from aiorainpoint._mqtt import RainPointMqttClient
+    from aiorainpoint import RainPointMqttClient
 
     class _DumpingMqttClient(RainPointMqttClient):
         """Print every envelope instead of routing it to a coordinator.
@@ -296,7 +296,7 @@ async def _run_dump(args: argparse.Namespace, password: str) -> int:
     """
     import aiohttp
 
-    from aiorainpoint._client import RainPointClient
+    from aiorainpoint import RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:

@@ -179,7 +179,7 @@ def _print_status(label: str, entry: dict | None, decoder) -> None:
 async def _run_trial(args: argparse.Namespace, password: str) -> int:
     import aiohttp
 
-    from aiorainpoint._client import RainPointApiError, RainPointClient
+    from aiorainpoint import RainPointApiError, RainPointClient
 
     timeout = aiohttp.ClientTimeout(total=_REQUEST_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:

@@ -135,6 +135,12 @@ class TestModelsNamespace:
         assert set(models_module.__all__) == MODELS_PUBLIC_NAMES
         assert len(models_module.__all__) == len(MODELS_PUBLIC_NAMES)
 
+    def test_no_public_name_leaks_outside_all(self):
+        """Only the stdlib names models.py imports sit outside __all__, so a new definition cannot ship unlisted."""
+        imported = {"Callable", "Mapping", "MappingProxyType", "StrEnum", "dataclass"}
+        public = {name for name in vars(models_module) if not name.startswith("_")}
+        assert public - set(models_module.__all__) == imported
+
     def test_every_model_constant_has_a_row(self):
         """A model constant without a MODELS row would be a model the integration cannot decode."""
         constants = {value for name, value in vars(models_module).items() if isinstance(value, str) and name.isupper()}

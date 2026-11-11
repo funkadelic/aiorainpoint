@@ -101,6 +101,11 @@ class RainPointThrottledError(RainPointApiError):
 _BASE_URL = "https://region3.homgarus.com"
 
 
+def _check_app_code(app_code: int) -> None:
+    if type(app_code) is not int or app_code not in (1, 2):
+        raise ValueError(f"app_code must be 1 (HomGar) or 2 (RainPoint), got {app_code!r}")
+
+
 async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = _BASE_URL, app_code: int = 2) -> list[dict]:
     """Fetch the app_code app's productModel catalog as a list of model entries, without logging in.
 
@@ -108,6 +113,7 @@ async def fetch_product_catalog(session: aiohttp.ClientSession, base_url: str = 
     Its "data" is an object whose "models" key holds the entries; a bare list
     is passed through, and any other shape yields [].
     """
+    _check_app_code(app_code)
     url = f"{base_url}/app/common/core/productModel"
     _LOGGER.debug("API call: fetch_product_catalog URL=%s", url)
     headers = {"appCode": str(app_code), "lang": "en", "User-Agent": _USER_AGENT}
@@ -150,8 +156,7 @@ class RainPointClient:
 
         app_code selects the vendor app the account belongs to: 2 for RainPoint, 1 for HomGar.
         """
-        if type(app_code) is not int or app_code not in (1, 2):
-            raise ValueError(f"app_code must be 1 (HomGar) or 2 (RainPoint), got {app_code!r}")
+        _check_app_code(app_code)
         self._area_code = area_code
         self._email = email
         self._password = password  # cleartext, HA will store

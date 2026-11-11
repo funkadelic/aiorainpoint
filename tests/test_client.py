@@ -2228,6 +2228,13 @@ class TestFetchProductCatalog:
         assert "auth" not in kwargs["headers"]
 
     @pytest.mark.asyncio
+    async def test_unknown_app_code_raises_before_any_request(self):
+        session = self._session({"code": 0, "data": []})
+        with pytest.raises(ValueError, match="app_code"):
+            await fetch_product_catalog(session, app_code=True)
+        session.get.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_client_method_sends_its_app_code(self):
         """A HomGar client fetches the HomGar catalog."""
         client = RainPointClient("1", "test@example.com", "testpass", MagicMock(), app_code=1)
