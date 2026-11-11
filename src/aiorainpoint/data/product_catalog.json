@@ -1,4 +1,492 @@
 {
+  "BZ501FRF": {
+    "47": {
+      "accessoryFlag": false,
+      "dp": [
+        {
+          "dpCode": 0,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_CHG"
+        },
+        {
+          "dpCode": 0,
+          "dpDataType": "",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "CTL_CMD"
+        },
+        {
+          "dpCode": 17,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_POWER"
+        },
+        {
+          "dpCode": 18,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_ENERGY"
+        },
+        {
+          "dpCode": 19,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DURATION"
+        },
+        {
+          "dpCode": 21,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 1,
+          "identity": "STA_EVTIME"
+        },
+        {
+          "dpCode": 26,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_TOTAL_TODAY"
+        },
+        {
+          "dpCode": 30,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_WKSTATE"
+        },
+        {
+          "dpCode": 31,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_BAT"
+        },
+        {
+          "dpCode": 32,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_RSSI"
+        },
+        {
+          "dpCode": 44,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DAY_RAIN"
+        },
+        {
+          "dpCode": 50,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_OTHER_TOTAL"
+        },
+        {
+          "dpCode": 51,
+          "dpDataType": "S8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_RSRP"
+        },
+        {
+          "dpCode": 54,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_REPTIME"
+        },
+        {
+          "dpCode": 55,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_LIGHT_LEVEL"
+        },
+        {
+          "dpCode": 58,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_ALARM_EX"
+        }
+      ],
+      "hasDistribution": true,
+      "isMainDevice": false,
+      "portNumber": 1
+    }
+  },
+  "BZ501FRF_V2": {
+    "413": {
+      "accessoryFlag": false,
+      "dp": [
+        {
+          "dpCode": 0,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_CHG"
+        },
+        {
+          "dpCode": 0,
+          "dpDataType": "",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "CTL_CMD"
+        },
+        {
+          "dpCode": 17,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_POWER"
+        },
+        {
+          "dpCode": 18,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_ENERGY"
+        },
+        {
+          "dpCode": 19,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DURATION"
+        },
+        {
+          "dpCode": 21,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 1,
+          "identity": "STA_EVTIME"
+        },
+        {
+          "dpCode": 26,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_TOTAL_TODAY"
+        },
+        {
+          "dpCode": 30,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_WKSTATE"
+        },
+        {
+          "dpCode": 31,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_BAT"
+        },
+        {
+          "dpCode": 32,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_RSSI"
+        },
+        {
+          "dpCode": 44,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_DAY_RAIN"
+        },
+        {
+          "dpCode": 50,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_OTHER_TOTAL"
+        },
+        {
+          "dpCode": 51,
+          "dpDataType": "S8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_RSRP"
+        },
+        {
+          "dpCode": 54,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_REPTIME"
+        },
+        {
+          "dpCode": 55,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_LIGHT_LEVEL"
+        },
+        {
+          "dpCode": 58,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_ALARM_EX"
+        }
+      ],
+      "hasDistribution": false,
+      "isMainDevice": false,
+      "portNumber": 1
+    }
+  },
+  "BZ502FRF": {
+    "414": {
+      "accessoryFlag": false,
+      "dp": [
+        {
+          "dpCode": 0,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_CHG"
+        },
+        {
+          "dpCode": 0,
+          "dpDataType": "",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "CTL_CMD"
+        },
+        {
+          "dpCode": 17,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_POWER"
+        },
+        {
+          "dpCode": 18,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_ENERGY"
+        },
+        {
+          "dpCode": 19,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DURATION"
+        },
+        {
+          "dpCode": 21,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 1,
+          "identity": "STA_EVTIME"
+        },
+        {
+          "dpCode": 26,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_TOTAL_TODAY"
+        },
+        {
+          "dpCode": 30,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_WKSTATE"
+        },
+        {
+          "dpCode": 31,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_BAT"
+        },
+        {
+          "dpCode": 32,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_RSSI"
+        },
+        {
+          "dpCode": 44,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_DAY_RAIN"
+        },
+        {
+          "dpCode": 50,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_OTHER_TOTAL"
+        },
+        {
+          "dpCode": 51,
+          "dpDataType": "S8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_RSRP"
+        },
+        {
+          "dpCode": 54,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_REPTIME"
+        },
+        {
+          "dpCode": 55,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_LIGHT_LEVEL"
+        },
+        {
+          "dpCode": 58,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_ALARM_EX"
+        }
+      ],
+      "hasDistribution": true,
+      "isMainDevice": false,
+      "portNumber": 1
+    }
+  },
+  "BZ601FRF": {
+    "370": {
+      "accessoryFlag": false,
+      "dp": [
+        {
+          "dpCode": 0,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_CHG"
+        },
+        {
+          "dpCode": 0,
+          "dpDataType": "",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "CTL_CMD"
+        },
+        {
+          "dpCode": 17,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_POWER"
+        },
+        {
+          "dpCode": 18,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_ENERGY"
+        },
+        {
+          "dpCode": 19,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DURATION"
+        },
+        {
+          "dpCode": 21,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 1,
+          "identity": "STA_EVTIME"
+        },
+        {
+          "dpCode": 26,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_TOTAL_TODAY"
+        },
+        {
+          "dpCode": 30,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_WKSTATE"
+        },
+        {
+          "dpCode": 31,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_BAT"
+        },
+        {
+          "dpCode": 32,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_RSSI"
+        },
+        {
+          "dpCode": 44,
+          "dpDataType": "TD2",
+          "dpLen": 2,
+          "dpPort": 0,
+          "identity": "STA_DAY_RAIN"
+        },
+        {
+          "dpCode": 50,
+          "dpDataType": "U32",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_OTHER_TOTAL"
+        },
+        {
+          "dpCode": 51,
+          "dpDataType": "S8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_RSRP"
+        },
+        {
+          "dpCode": 54,
+          "dpDataType": "T4",
+          "dpLen": 4,
+          "dpPort": 0,
+          "identity": "STA_REPTIME"
+        },
+        {
+          "dpCode": 55,
+          "dpDataType": "U24",
+          "dpLen": 3,
+          "dpPort": 0,
+          "identity": "STA_LIGHT_LEVEL"
+        },
+        {
+          "dpCode": 58,
+          "dpDataType": "U8",
+          "dpLen": 1,
+          "dpPort": 0,
+          "identity": "STA_ALARM_EX"
+        }
+      ],
+      "hasDistribution": true,
+      "isMainDevice": false,
+      "portNumber": 1
+    }
+  },
   "HCS003ARF-V1": {
     "285": {
       "accessoryFlag": false,
@@ -2149,6 +2637,49 @@
       "hasDistribution": false,
       "isMainDevice": true,
       "portNumber": 0
+    }
+  },
+  "HIS019WRF-V2": {
+    "264": {
+      "accessoryFlag": false,
+      "dp": [],
+      "hasDistribution": true,
+      "isMainDevice": true,
+      "portNumber": 0
+    }
+  },
+  "HIS019WRF-V3": {
+    "304": {
+      "accessoryFlag": false,
+      "dp": [],
+      "hasDistribution": false,
+      "isMainDevice": true,
+      "portNumber": 0
+    }
+  },
+  "HIS019WRF-V4": {
+    "308": {
+      "accessoryFlag": false,
+      "dp": [],
+      "hasDistribution": false,
+      "isMainDevice": true,
+      "portNumber": 0
+    }
+  },
+  "HPS551WRF": {
+    "266": {
+      "accessoryFlag": false,
+      "dp": [],
+      "hasDistribution": false,
+      "isMainDevice": true,
+      "portNumber": 0
+    },
+    "79": {
+      "accessoryFlag": true,
+      "dp": [],
+      "hasDistribution": false,
+      "isMainDevice": false,
+      "portNumber": 1
     }
   },
   "HTP115FRF": {

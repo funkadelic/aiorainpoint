@@ -2219,15 +2219,17 @@ class TestFetchProductCatalog:
 class TestTrimCatalog:
     """Tests for scripts/refresh_product_catalog.py::trim_catalog (pure transform, no network)."""
 
-    def test_drops_non_rainpoint_model(self):
-        """A model without one of the fork's prefixes is dropped entirely."""
+    def test_keeps_every_named_model_and_drops_nameless_entries(self):
+        """No model-name filter: an unfamiliar family is kept, only an entry without a string name is dropped."""
         raw = [
-            {"model": "SOMEOTHERBRAND", "dp": [{"dpCode": 1, "identity": "STA_TEM"}]},
+            {"model": "BZ501FRF", "modelCode": 47, "dp": [{"dpCode": 1, "identity": "STA_TEM"}]},
+            {"model": "", "dp": []},
+            {"dp": []},
+            {"model": ["HTV245FRF"], "dp": []},
+            {"model": {"name": "HTV245FRF"}, "dp": []},
         ]
 
-        result = trim_catalog(raw)
-
-        assert result == {}
+        assert list(trim_catalog(raw)) == ["BZ501FRF"]
 
     def test_keeps_only_the_five_dp_fields(self):
         """A kept RainPoint model's dp entries keep exactly the five needed fields.
@@ -2273,7 +2275,6 @@ class TestTrimCatalog:
                 "model": "HCS021FRF",
                 "dp": [{"dpCode": 10, "identity": "STA_RH", "dpPort": 1, "dpDataType": "uint8", "portNumber": 1}],
             },
-            {"model": "NOTRAINPOINT", "dp": []},
         ]
 
         result = trim_catalog(raw)
@@ -2459,43 +2460,6 @@ class TestTrimCatalog:
         assert refresh_product_catalog.UNCODED_VARIANT == product_catalog.UNCODED_VARIANT
 
 
-class TestDroppedModelPrefixes:
-    """Tests for scripts/refresh_product_catalog.py::dropped_model_prefixes."""
-
-    def test_counts_what_the_prefix_filter_refused(self):
-        """The tally is what makes a missing family visible in a run's own output.
-
-        An HTP160FRF owner was told the model "is not in the product catalog"
-        when the snapshot generator's prefix list was what dropped it. This
-        report is so the next such family shows up in the log rather than only
-        in that owner's issue.
-        """
-        raw = [
-            {"model": "HTV245FRF"},
-            {"model": "HTP160FRF"},
-            {"model": "HRS900X"},
-            {"model": "HRS901X"},
-            {"model": "SOMEOTHERBRAND"},
-        ]
-
-        assert refresh_product_catalog.dropped_model_prefixes(raw) == {"HRS": 2, "SOM": 1}
-
-    def test_htp_is_kept_rather_than_counted(self):
-        """HTP is in the prefix list now, so an HTP model is not a dropped entry."""
-        assert refresh_product_catalog.dropped_model_prefixes([{"model": "HTP160FRF"}]) == {}
-        assert "HTP160FRF" in trim_catalog([{"model": "HTP160FRF", "modelCode": 361, "dp": []}])
-
-    def test_a_nameless_entry_is_counted_under_its_own_label(self):
-        """An entry with no usable model name is tallied, never silently omitted."""
-        assert refresh_product_catalog.dropped_model_prefixes([{"model": ""}, {}]) == {"<no model>": 2}
-
-    def test_every_kept_prefix_reports_nothing_dropped(self):
-        """Cross-checked against _MODEL_PREFIXES itself, so adding one cannot go untested."""
-        raw = [{"model": f"{prefix}999X"} for prefix in refresh_product_catalog._MODEL_PREFIXES]
-
-        assert refresh_product_catalog.dropped_model_prefixes(raw) == {}
-
-
 class TestRefreshScriptDrift:
     """Tests for the --check drift report.
 
@@ -2631,8 +2595,8 @@ class TestRefreshScriptMain:
         refresh_product_catalog.main(["--check", "--timeout", "5"])
         assert captured["timeout_seconds"] == 5.0
 
-    def test_fetch_trims_and_reports_dropped_prefixes_on_stderr(self, monkeypatch, capsys):
-        """The filter's refusals reach stderr, so --check stdout stays the drift summary CI captures."""
+    def test_fetch_trims_with_progress_on_stderr(self, monkeypatch, capsys):
+        """Progress goes to stderr, so --check stdout stays the drift summary CI captures."""
         import aiorainpoint.client as client_module
 
         async def _fake_catalog(session):
@@ -2643,9 +2607,8 @@ class TestRefreshScriptMain:
         trimmed = asyncio.run(refresh_product_catalog._fetch_trimmed_catalog(5.0))
         captured = capsys.readouterr()
 
-        assert trimmed == {"HTV245FRF": {"303": {"portNumber": None, "dp": []}}}
-        assert "Dropped 1 entry outside the kept model prefixes" in captured.err
-        assert "HRS x1" in captured.err
+        assert set(trimmed) == {"HTV245FRF", "HRS900X"}
+        assert "Fetched 2 RainPoint model entries." in captured.err
         assert captured.out == ""
 
     def test_fetch_timeout_names_the_flag(self, monkeypatch, capsys):

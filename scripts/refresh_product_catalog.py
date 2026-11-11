@@ -32,19 +32,6 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _CATALOG_PATH = _REPO_ROOT / "src" / "aiorainpoint" / "data" / "product_catalog.json"
 
-# Only these model-name prefixes are kept -- devices report RainPoint model
-# strings, so any other RainPoint catalog entry is never looked up and would
-# only bloat the committed file.
-#
-# The list is the failure mode as well as the feature: a family missing from it
-# never reaches the snapshot, and the client then tells that device's
-# owner the model "is not in the product catalog", which reads as RainPoint not
-# describing it rather than as this filter dropping it. HTP was added on
-# 2026-09-09 after an HTP160FRF report; every run now reports what the filter
-# dropped (see dropped_model_prefixes) so the next missing family shows up in
-# the log instead of only in a user's issue.
-_MODEL_PREFIXES = ("HTV", "HCS", "HWS", "HWG", "HIC", "HTP")
-
 # Per dp entry, keep only the fields the loader/enrichment needs. Drop
 # UI/provisioning metadata the RainPoint catalog also carries.
 #
@@ -90,28 +77,6 @@ _DEFAULT_TIMEOUT_SECONDS = 90.0
 UNCODED_VARIANT = "*"
 
 
-def dropped_model_prefixes(raw: list[dict]) -> dict[str, int]:
-    """Count the raw entries trim_catalog drops, grouped by model-name prefix.
-
-    The counterpart to _MODEL_PREFIXES: what the filter refused, so a family
-    RainPoint has started shipping is visible in a run's own output rather
-    than surfacing later as an owner's "not in the product catalog" report.
-
-    Grouped on the first three characters because that is the width every
-    RainPoint family name uses; an entry with a shorter or absent model name
-    is counted under its own text so nothing is silently omitted from the
-    tally. Pure function: no I/O, no network.
-    """
-    dropped: dict[str, int] = {}
-    for entry in raw:
-        model = entry.get("model")
-        if model and str(model).startswith(_MODEL_PREFIXES):
-            continue
-        prefix = str(model)[:3] if model else "<no model>"
-        dropped[prefix] = dropped.get(prefix, 0) + 1
-    return dropped
-
-
 def trim_catalog(raw: list[dict]) -> dict:
     """Trim a raw RainPoint productModel catalog to the committed snapshot shape.
 
@@ -120,9 +85,10 @@ def trim_catalog(raw: list[dict]) -> dict:
     "modelCode", a model-level "portNumber", and a "dp" list of per-datapoint
     metadata dicts. Returns an object keyed by model string then by modelCode,
     whose values are {"portNumber": ..., "dp": [...]} records carrying whichever
-    of _KEPT_PROVENANCE_FIELDS RainPoint supplied as booleans. RainPoint-prefixed
-    models keep only their STA_/CTL_ dp entries, trimmed to _KEPT_DP_FIELDS;
-    every other model, and every other identity namespace, is dropped.
+    of _KEPT_PROVENANCE_FIELDS RainPoint supplied as booleans. Every named
+    model is kept, with only its STA_/CTL_ dp entries, trimmed to
+    _KEPT_DP_FIELDS; an entry without a string name and every other identity
+    namespace are dropped.
 
     The model string alone is not a unique key: RainPoint maps some models to
     several modelCodes whose port counts genuinely differ (HIC801W is 0 ports
@@ -133,7 +99,7 @@ def trim_catalog(raw: list[dict]) -> dict:
     trimmed: dict[str, dict[str, dict]] = {}
     for entry in raw:
         model = entry.get("model")
-        if not model or not str(model).startswith(_MODEL_PREFIXES):
+        if not isinstance(model, str) or not model:
             continue
         model_code = entry.get("modelCode")
         variant = UNCODED_VARIANT if model_code is None else str(model_code)
@@ -276,16 +242,6 @@ async def _fetch_trimmed_catalog(timeout_seconds: float) -> dict:
             )
             raise
     print(f"Fetched {len(raw)} RainPoint model entries.", file=sys.stderr)
-    dropped = dropped_model_prefixes(raw)
-    if dropped:
-        total = sum(dropped.values())
-        summary = ", ".join(f"{prefix} x{count}" for prefix, count in sorted(dropped.items()))
-        print(
-            f"Dropped {total} {'entry' if total == 1 else 'entries'} outside the kept model prefixes "
-            f"({', '.join(_MODEL_PREFIXES)}): {summary}. If an owner reports a device from one of these "
-            f"families, add its prefix to _MODEL_PREFIXES and re-run.",
-            file=sys.stderr,
-        )
     return trim_catalog(raw)
 
 
