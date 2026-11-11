@@ -86,11 +86,11 @@ Log anything else from a cloud record through `utils.summarize_record`, which sh
 
 Model constants and decoders live here, so a new model starts in this repo and finishes in ha-rainpoint.
 
-1. Add `MODEL_XXX = "XXX"` to `models.py`, and add the model to `HAND_WRITTEN_MODELS`.
-2. Write `decode_xxx(raw: str) -> dict` in `decoders.py`, with a docstring. Return at least `type`, `rssi_dbm` and `raw_bytes`, plus any device-specific fields. Use `_parse_rainpoint_payload` and `_parse_tlv_payload` from `utils.py`.
-3. Add tests to `tests/test_decoders.py` that cover every branch of the decoder, with sample payloads in `tests/payload_samples.py`.
+1. Add `XXX = "XXX"` to `models.py` and to its `__all__`, then give it a `MODELS` row naming its decoder and family. A valve or controller row also states its duration unit and control endpoint. A model that reuses an existing frame needs nothing more here.
+2. Write `decode_xxx(raw: str) -> dict` in `_decoders.py`, with a docstring. Return at least `type`, `rssi_dbm` and `raw_bytes`, plus any device-specific fields. Use `_parse_rainpoint_payload` and `_parse_tlv_payload` from `_utils.py`.
+3. Add tests to `tests/test_decoders.py` that cover every branch of the decoder, with sample payloads in `tests/payload_samples.py`. Add the model and its frames to `CASES` in `tests/test_decoder_golden.py`, then run it with `UPDATE_GOLDEN=1`.
 4. Export it: add `decode_xxx` to `__init__.py` and to `EXPECTED_PUBLIC_NAMES`.
-5. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
+5. Update `_DECODERS_PY_SHA256` in `tests/test_generic_decoder.py` to the output of `sha256sum src/aiorainpoint/_decoders.py`. The pin catches the generic decoder reaching into this file, so a deliberate decoder change moves it in the same commit.
 
 After the release, the integration side is in ha-rainpoint's [CONTRIBUTING.md](https://github.com/funkadelic/ha-rainpoint/blob/main/CONTRIBUTING.md).
 

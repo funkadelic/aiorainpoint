@@ -15,7 +15,7 @@ from typing import Any
 
 import aiohttp
 
-from .utils import _RecordSummary
+from ._utils import _RecordSummary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,13 +137,26 @@ class RainPointClient:
     demand, and exposes one method per cloud endpoint the client uses.
     """
 
-    def __init__(self, area_code: str, email: str, password: str, session: aiohttp.ClientSession):
-        """Bind a client to one account, over a caller-supplied aiohttp session."""
+    def __init__(
+        self,
+        area_code: str,
+        email: str,
+        password: str,
+        session: aiohttp.ClientSession,
+        *,
+        app_code: int = 2,
+    ):
+        """Bind a client to one account, over a caller-supplied aiohttp session.
+
+        app_code selects the vendor app the account belongs to: 2 for RainPoint, 1 for HomGar.
+        """
+        if app_code not in (1, 2):
+            raise ValueError(f"app_code must be 1 (HomGar) or 2 (RainPoint), got {app_code!r}")
         self._area_code = area_code
         self._email = email
         self._password = password  # cleartext, HA will store
         self._session = session
-        self._app_code = "2"
+        self._app_code = str(app_code)
 
         _LOGGER.info("RainPointClient initialized with app_code: %s", self._app_code)
 
@@ -205,7 +218,7 @@ class RainPointClient:
         return {
             "auth": self._token,
             "lang": "en",
-            "appCode": self._app_code,  # Hardcoded to RainPoint appCode "2"
+            "appCode": self._app_code,
             "version": "1.16.1065",
             "sceneType": "1",
             "User-Agent": _USER_AGENT,

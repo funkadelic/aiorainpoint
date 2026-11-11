@@ -33,8 +33,8 @@ from aiorainpoint import (
     has_bluetooth_control_identity,
     is_hand_written_model,
 )
-from aiorainpoint.decoders import _hic801w_stations_from_mask
-from aiorainpoint.utils import (
+from aiorainpoint._decoders import _hic801w_stations_from_mask
+from aiorainpoint._utils import (
     STA_DURATION_FIELD,
     STA_LASTUSAGE_FIELD,
     _parse_rainpoint_payload,
@@ -843,7 +843,7 @@ class TestLittleEndianTripwire:
         will decode as int.from_bytes(b'\\xe8\\x03', 'big') = 59395 instead
         of the correct int.from_bytes(b'\\xe8\\x03', 'little') = 1000.
         """
-        from aiorainpoint.utils import _parse_tlv_payload
+        from aiorainpoint._utils import _parse_tlv_payload
 
         # Construct a minimal TLV payload with one 0xAD-typed record:
         # DP ID 0x25 (zone 1 duration), type 0xAD, value bytes E8 03
@@ -1761,7 +1761,7 @@ class TestHws019PartialBranches:
 
     def test_keyed_item_without_parens_takes_full_value(self):
         """A 'K=plain_value' item with no '(' stores the value as-is."""
-        from aiorainpoint.decoders import _apply_hws019_keyed_item
+        from aiorainpoint._decoders import _apply_hws019_keyed_item
 
         readings: dict = {}
         stats: dict = {}
@@ -1771,7 +1771,7 @@ class TestHws019PartialBranches:
 
     def test_third_positional_item_after_humidity_is_ignored(self):
         """A third positional item is silently dropped once temp + humidity are filled."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("707(707/694/1),42(42/39/1),99(99/0/1)")
         assert readings == {"temp": "707", "humidity": "42"}
@@ -1779,7 +1779,7 @@ class TestHws019PartialBranches:
 
     def test_readings_token_without_equals_or_parens_is_ignored(self):
         """A readings token with neither '=' nor '(' is silently dropped."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("plain_text_no_special_chars")
         assert readings == {}
@@ -1787,7 +1787,7 @@ class TestHws019PartialBranches:
 
     def test_daily_max_min_are_captured_for_each_reading(self):
         """The bracketed trailer is preserved as day max/min alongside the current value."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("707(707/694/1),42(42/39/1),P=9709(9709/9701/1)")
         assert readings == {"temp": "707", "humidity": "42", "P": "9709"}
@@ -1799,7 +1799,7 @@ class TestHws019PartialBranches:
 
     def test_malformed_trailer_yields_no_stats(self):
         """A '(...)' trailer that is not a numeric triple is dropped, keeping the current value."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("707(abc),P=9709(x/y)")
         assert readings == {"temp": "707", "P": "9709"}
@@ -1811,7 +1811,7 @@ class TestHws019PartialBranches:
         Searching for the triple anywhere in the token would pick up the second
         group and record stats for a token that is structurally malformed.
         """
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("707(abc)(798/750/1)")
         assert readings == {"temp": "707"}
@@ -1819,7 +1819,7 @@ class TestHws019PartialBranches:
 
     def test_trailing_junk_after_trailer_yields_no_stats(self):
         """Text after the trailer marks the token malformed, so no stats are recorded."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("707(798/750/1)junk")
         assert readings == {"temp": "707"}
@@ -1833,7 +1833,7 @@ class TestHws019PartialBranches:
         below 0F arrives with a leading '-'. A digits-only pattern matches
         nothing and drops the entire trailer, losing the max as well.
         """
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("20(50/-50/1)")
         assert readings == {"temp": "20"}
@@ -1841,7 +1841,7 @@ class TestHws019PartialBranches:
 
     def test_negative_current_value_and_min_are_captured(self):
         """A reading that is itself below zero keeps both its value and its stats."""
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("-50(20/-90/1)")
         assert readings == {"temp": "-50"}
@@ -1858,7 +1858,7 @@ class TestHws019PartialBranches:
         Payload provenance: brettmeyerowitz/homeassistant-homgar,
         tests/fixtures/payloads/HWS019WRF-V2.json. It is not a synthetic value.
         """
-        from aiorainpoint.decoders import decode_hws019wrf_v2
+        from aiorainpoint._decoders import decode_hws019wrf_v2
 
         result = decode_hws019wrf_v2("1,0,1;758(798/750/1),54(54/46/1),P=8569(8569/8540/1),")
         assert result["readings"] == {"temp": "758", "humidity": "54", "P": "8569"}
@@ -1873,7 +1873,7 @@ class TestHws019PartialBranches:
         In 'R=4870(10/20/430)' the values ascend and do not bracket the current
         reading, so recording them as max/min would invert their meaning.
         """
-        from aiorainpoint.decoders import _parse_hws019_readings
+        from aiorainpoint._decoders import _parse_hws019_readings
 
         readings, stats = _parse_hws019_readings("R=4870(10/20/430)")
         assert readings == {"R": "4870"}
@@ -2076,14 +2076,14 @@ class TestHtv213ZoneUsageAndEventTime:
 
     def test_impossible_packed_date_yields_none(self):
         """A word whose fields are not a real date is dropped, not clamped into one."""
-        from aiorainpoint.decoders import decode_packed_timestamp
+        from aiorainpoint._decoders import decode_packed_timestamp
 
         # Month field 0 and day field 0: structurally parseable, not a date.
         assert decode_packed_timestamp(0x18000000) is None
 
     def test_packed_timestamp_covers_the_full_field_range(self):
         """Each bit field lands in its own component rather than bleeding into a neighbour."""
-        from aiorainpoint.decoders import decode_packed_timestamp
+        from aiorainpoint._decoders import decode_packed_timestamp
 
         # year 5 (2025), month 12, day 31, hour 23, minute 59, second 59.
         packed = (5 << 26) | (12 << 22) | (31 << 17) | (23 << 12) | (59 << 6) | 59
@@ -2728,7 +2728,7 @@ class TestDecodeHic801w:
         mutated = SAMPLE_HIC801W_STATION3_PAYLOAD.replace("F703FF0300F9", "F703FF0301F9")
         assert mutated != SAMPLE_HIC801W_STATION3_PAYLOAD
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.decoders"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._decoders"):
             result = decode_hic801w(mutated)
 
         assert result["decoder"] == "hic801w_error"
@@ -2761,7 +2761,7 @@ class TestDecodeHic801w:
         mutated = SAMPLE_HIC801W_STATION3_PAYLOAD.replace("F703FF0300F9", "F703FF0301F9")
         assert mutated != SAMPLE_HIC801W_STATION3_PAYLOAD
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.decoders"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
             result = decode_hic801w(mutated)
 
         assert result["decoder"] == "hic801w_error"
@@ -2781,7 +2781,7 @@ class TestDecodeHic801w:
         """
         payload = "99#DEADBEEFCAFEBABE"
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.decoders"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
             result = decode_hic801w(payload)
 
         assert result["decoder"] == "hic801w_error"
@@ -2817,7 +2817,7 @@ class TestDecodeHic801w:
         """
         truncated = "10#" + SAMPLE_HIC801W_STATION3_PAYLOAD[3:][:truncate_to]
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.decoders"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
             result = decode_hic801w(truncated)
 
         assert result["decoder"] == "hic801w_error"
@@ -2837,7 +2837,7 @@ class TestDecodeHic801w:
         width the decoder needs rather than dropped as unreadable. Header 0xAD
         is STA_DURATION declared two bytes wide.
         """
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.decoders"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
             result = decode_hic801w("10#AD3C00")
 
         assert result["decoder"] == "hic801w_error"
@@ -2936,7 +2936,7 @@ class TestHic801wCatalogKeying:
 
     def test_resolution_requires_modelcode_the_committed_catalog_carries_no_disambiguator(self):
         """The committed catalog snapshot carries no hasDistribution or
-        similar per-variant flag to fall back on (product_catalog.py trims
+        similar per-variant flag to fall back on (_product_catalog.py trims
         each variant record to {"portNumber", "dp"}): HIC801W has two
         modelCode variants and no uncoded ("*") bucket, so a lookup with no
         modelCode resolves to None rather than guessing between them. This is

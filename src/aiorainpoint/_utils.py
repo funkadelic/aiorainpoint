@@ -328,14 +328,14 @@ def is_ascii_payload(raw: str) -> bool:
     is present, separating the header from the body;
     and a ``","`` appears in the pre-semicolon header, matching the
     ``[flags],[rssi],[flags];...`` shape both hand-written ASCII decoders in
-    ``decoders.py`` already parse. Deliberately not requiring the full
+    ``_decoders.py`` already parse. Deliberately not requiring the full
     three-part header here: an ASCII-shaped payload with a short or malformed
     header must still route here and be declined by the ASCII branch, never
     fall through to the hex path to be misreported as a hex parse failure
     (the fail-closed rule this module's caller depends on). The stricter
     three-part check belongs to ``_parse_ascii_rssi``, which reads the header
     once it has already been routed here. Mirrors the ordering the two
-    routers in ``decoders.py`` use: hex prefix checked first, ASCII shape
+    routers in ``_decoders.py`` use: hex prefix checked first, ASCII shape
     checked as the fallback.
     """
     if "#" in raw:

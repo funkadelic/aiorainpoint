@@ -1,12 +1,14 @@
 """
 RainPoint API module.
 
-Re-exports the client, the per-model decoders, the catalog lookups and the
-helpers callers need, so they import all of them from one place.
+Re-exports the client, the push client, the per-model decoders, the catalog
+lookups and the helpers callers need, so they import all of them from one
+place. Model identifiers and the model table live in the ``models`` namespace.
 """
 
-from .client import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
-from .decoders import (
+from . import models as models
+from ._client import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
+from ._decoders import (
     SINGLE_OUTLET_GALLONS_PER_COUNT,
     USAGE_GALLONS_PER_COUNT,
     decode_co2,
@@ -34,15 +36,17 @@ from .decoders import (
     decode_unknown,
     decode_valve_hub,
 )
-from .generic_decoder import decode_generic, is_ascii_declined
-from .product_catalog import (
+from ._generic_decoder import decode_generic, is_ascii_declined
+from ._mqtt import RainPointMqttClient
+from ._product_catalog import (
+    UNCODED_VARIANT,
     get_catalog_entry,
     get_catalog_fingerprint,
     get_catalog_port_number,
     get_catalog_variant_codes,
 )
-from .trust import has_bluetooth_control_identity, is_hand_written_model
-from .utils import (
+from ._trust import has_bluetooth_control_identity, is_hand_written_model
+from ._utils import (
     decode_packed_report_time,
     encode_dp_duration_param,
     f10_to_c,
@@ -56,17 +60,19 @@ from .utils import (
     summarize_record,
     valid_rssi_dbm,
 )
-from .validators import (
+from ._validators import (
     battery_flag_is_low,
     battery_flag_to_percent,
 )
 
 __all__ = [
     "SINGLE_OUTLET_GALLONS_PER_COUNT",
+    "UNCODED_VARIANT",
     "USAGE_GALLONS_PER_COUNT",
     "RainPointApiError",
     "RainPointClient",
     "RainPointError",
+    "RainPointMqttClient",
     "RainPointThrottledError",
     "battery_flag_is_low",
     "battery_flag_to_percent",

@@ -7,8 +7,8 @@ import sys
 from importlib.metadata import version
 
 import aiorainpoint
-from aiorainpoint.mqtt import MQTT_TLS_CA_CERT
-from aiorainpoint.product_catalog import get_catalog_entry, get_catalog_fingerprint
+from aiorainpoint._mqtt import MQTT_TLS_CA_CERT
+from aiorainpoint._product_catalog import get_catalog_entry, get_catalog_fingerprint
 
 
 def main(expected_version: str | None) -> int:

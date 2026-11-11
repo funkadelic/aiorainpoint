@@ -11,12 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import aiorainpoint.client as _client_module
-import aiorainpoint.product_catalog as product_catalog
+import aiorainpoint._client as _client_module
+import aiorainpoint._product_catalog as product_catalog
 from aiorainpoint import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
-from aiorainpoint.client import _SESSION_REJECTED_CODES, _USER_AGENT, fetch_product_catalog
-from aiorainpoint.mqtt import RainPointMqttError
-from aiorainpoint.utils import _redact_secret
+from aiorainpoint._client import _SESSION_REJECTED_CODES, _USER_AGENT, fetch_product_catalog
+from aiorainpoint._mqtt import RainPointMqttError
+from aiorainpoint._utils import _redact_secret
 from tests.helpers import make_mock_session_client, mock_json_response
 
 # scripts/ is not a package (it's a standalone maintainer-tool directory, not
@@ -412,7 +412,7 @@ class TestControlWorkModeDp:
         json_body = {"code": 0, "data": {"state": "1,D821AF3C000000B7D1230B1A"}}
         client._session.post = MagicMock(return_value=self._mock_response(json_body))
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._client"):
             await client.control_work_mode_dp(
                 mid=1,
                 addr=3,
@@ -1748,7 +1748,7 @@ class TestEverySessionRejectionIsRouted:
     rather than per endpoint. A new endpoint that forgets the predicate is a
     red test here rather than a quietly unrecoverable session.
 
-    Parses api/client.py with the standard library ast module rather than
+    Parses _client.py with the standard library ast module rather than
     importing and inspecting behavior, so the check reads the source the way
     a reviewer would and catches the omission even if no test happens to
     exercise the new endpoint's error path.
@@ -1789,7 +1789,7 @@ class RainPointClient:
     def _client_class_node(cls, source: str | None = None) -> ast.ClassDef:
         """Return the RainPointClient ClassDef node from a client source.
 
-        Passing None reads the real api/client.py. Passing a source string is
+        Passing None reads the real _client.py. Passing a source string is
         what lets the negative tests below drive fabricated methods through the
         same scan the real one uses.
         """
@@ -1833,7 +1833,7 @@ class RainPointClient:
 
         One helper so the real scan and the negative cases below cannot drift
         apart: a fabricated omission is only evidence if the code that catches
-        it is the same code that guards api/client.py.
+        it is the same code that guards _client.py.
         """
         class_node = cls._client_class_node(source)
         methods = [
@@ -1917,6 +1917,18 @@ class TestAuthHeaders:
         assert headers["User-Agent"] == _USER_AGENT
         assert "HomeAssistant" not in _USER_AGENT
 
+    def test_app_code_reaches_the_headers(self):
+        """A HomGar account sends appCode 1 on every authed call."""
+        client = RainPointClient("1", "test@example.com", "testpass", MagicMock(), app_code=1)
+        client._token = "mytoken"
+
+        assert client._auth_headers()["appCode"] == "1"
+
+    @pytest.mark.parametrize("app_code", [0, 3, "2"])
+    def test_unknown_app_code_raises(self, app_code):
+        with pytest.raises(ValueError, match="app_code"):
+            RainPointClient("1", "test@example.com", "testpass", MagicMock(), app_code=app_code)
+
     def test_auth_headers_dict_is_exact(self):
         """Pins every key and value, not just auth/appCode/User-Agent."""
         client = _make_client()
@@ -1952,7 +1964,7 @@ class TestCloudValuesStayOutOfLogs:
         client.ensure_logged_in = AsyncMock()
         client._session.post = MagicMock(return_value=_mock_response({"code": 0, "data": {"deviceSecret": "s"}}))
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._client"):
             await client.get_subscribe_status("MAC-AABBCC", "PK123", 1, 2)
 
         assert "MAC-AABBCC" not in caplog.text
@@ -1966,7 +1978,7 @@ class TestCloudValuesStayOutOfLogs:
         body = {"code": 0, "data": ["MAC-AABBCC", "My Back Yard"]}
         client._session.post = MagicMock(return_value=_mock_response(body))
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint.client"):
+        with caplog.at_level(logging.WARNING, logger="aiorainpoint._client"):
             await client.control_work_mode(mid=1, addr=1, device_name="d", product_key="p", port=1, mode=1, duration=300)
 
         assert "unexpected 'data' type list" in caplog.text
@@ -2597,7 +2609,7 @@ class TestRefreshScriptMain:
 
     def test_fetch_trims_with_progress_on_stderr(self, monkeypatch, capsys):
         """Progress goes to stderr, so --check stdout stays the drift summary CI captures."""
-        import aiorainpoint.client as client_module
+        import aiorainpoint._client as client_module
 
         async def _fake_catalog(session):
             return [{"model": "HTV245FRF", "modelCode": 303, "dp": []}, {"model": "HRS900X"}]
@@ -2613,7 +2625,7 @@ class TestRefreshScriptMain:
 
     def test_fetch_timeout_names_the_flag(self, monkeypatch, capsys):
         """A fetch past --timeout says how to raise the limit before the traceback."""
-        import aiorainpoint.client as client_module
+        import aiorainpoint._client as client_module
 
         async def _stalled(session):
             raise TimeoutError
@@ -3020,7 +3032,7 @@ class TestUpdateMainParam:
         client._session.post = MagicMock(return_value=_mock_response(json_body))
 
         distinctive_param = "0|1|marker-should-never-be-logged|"
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._client"):
             await client.update_main_param(mid=300011, param=distinctive_param)
 
         for record in caplog.records:
@@ -3158,12 +3170,12 @@ class TestUpdateSubParam:
 
         json_body = {"code": 0, "msg": "SUCCESS", "data": {"paramVersion": 3}}
         client._session.post = MagicMock(return_value=_mock_response(json_body))
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"):
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._client"):
             await client.update_sub_param(mid=1, sid=1, param=distinctive_param)
 
         client._session.post = MagicMock(return_value=_mock_response({"code": 5, "msg": "fail"}))
         with (
-            caplog.at_level(logging.DEBUG, logger="aiorainpoint.client"),
+            caplog.at_level(logging.DEBUG, logger="aiorainpoint._client"),
             pytest.raises(RainPointApiError),
         ):
             await client.update_sub_param(mid=1, sid=1, param=distinctive_param)

@@ -71,7 +71,7 @@ _KEPT_PROVENANCE_FIELDS = ("hasDistribution", "isMainDevice", "accessoryFlag")
 _DEFAULT_TIMEOUT_SECONDS = 90.0
 
 # Bucket key for RainPoint entries carrying no modelCode. Duplicated from
-# src/aiorainpoint/product_catalog.py rather than imported, so
+# src/aiorainpoint/_product_catalog.py rather than imported, so
 # trim_catalog stays importable without the package. A test asserts the two
 # stay in step.
 UNCODED_VARIANT = "*"
@@ -228,7 +228,7 @@ async def _fetch_trimmed_catalog(timeout_seconds: float) -> dict:
     """
     import aiohttp
 
-    from aiorainpoint.client import fetch_product_catalog
+    from aiorainpoint._client import fetch_product_catalog
 
     print(f"Fetching the RainPoint catalog (timeout {timeout_seconds:g}s)...", file=sys.stderr)
     timeout = aiohttp.ClientTimeout(total=timeout_seconds)

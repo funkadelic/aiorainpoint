@@ -3,9 +3,9 @@
 import json
 from typing import ClassVar
 
-import aiorainpoint.product_catalog as product_catalog_module
+import aiorainpoint._product_catalog as product_catalog_module
 from aiorainpoint import get_catalog_entry
-from aiorainpoint.product_catalog import (
+from aiorainpoint._product_catalog import (
     UNCODED_VARIANT,
     _fingerprint_catalog,
     _load_catalog,
