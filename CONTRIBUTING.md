@@ -53,7 +53,7 @@ Every action in `.github/workflows/` is pinned to a full commit SHA with the ver
 
 ```bash
 uv pip install --group mutation                         # or: pip install --group mutation
-mutmut run --max-children 4 'aiorainpoint.utils.*'      # one module
+mutmut run --max-children 4 'aiorainpoint._utils.*'     # one module
 mutmut results                                          # what survived
 mutmut show MUTANT_NAME                                 # one of those names, and its exact change
 ```
@@ -63,7 +63,7 @@ Scope a run to the module you're working on. `mutants/` is the working copy mutm
 Pass `--max-children` with a number below your core count, because the default of one worker per core can saturate the machine. Some mutants also break a loop so it never ends, and that worker grows until mutmut's timeout stops it. On Linux or WSL with systemd, this keeps a runaway worker from taking the session down with it:
 
 ```bash
-systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4 'aiorainpoint.utils.*'
+systemd-run --user --scope -p MemoryMax=10G -p MemorySwapMax=0 -p OOMPolicy=continue nice -n 19 mutmut run --max-children 4 'aiorainpoint._utils.*'
 ```
 
 A surviving mutant names a change to the source that no test objects to. Sometimes that means a missing assertion, and sometimes the line doesn't matter.
@@ -80,7 +80,7 @@ Underscore names stay private to their modules and are never re-exported. Removi
 
 Debug logs get pasted into public issues, so log lines on cloud-record paths carry only keys, integer counts, and the hardware model and model code. Never log `deviceName`, `productKey`, `iotId`, a MAC, a home or device name, the account email, or any other text from the cloud.
 
-Log anything else from a cloud record through `utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `utils._RecordSummary`, which does that work only when a handler formats the line.
+Log anything else from a cloud record through `_utils.summarize_record`, which shows its shape and field names but no values. In a log call, wrap the record in `_utils._RecordSummary`, which does that work only when a handler formats the line.
 
 ## Adding a new device model
 

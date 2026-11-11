@@ -53,7 +53,7 @@ def has_bluetooth_control_identity(model: str | None, model_code: int | str | No
     guess at the variant's.
 
     A model absent from the catalog still returns False, which is what keeps
-    a degraded snapshot (product_catalog loads to an empty catalog rather
+    a degraded snapshot (_product_catalog loads to an empty catalog rather
     than raising) from withdrawing the RF routing every install depends on.
     A hand-written model states its endpoint in ``models.MODELS`` instead; this
     answers for every other model, never an ad-hoc model string or list.

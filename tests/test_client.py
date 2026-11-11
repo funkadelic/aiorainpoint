@@ -1924,7 +1924,7 @@ class TestAuthHeaders:
 
         assert client._auth_headers()["appCode"] == "1"
 
-    @pytest.mark.parametrize("app_code", [0, 3, "2"])
+    @pytest.mark.parametrize("app_code", [0, 3, "2", True, 2.0])
     def test_unknown_app_code_raises(self, app_code):
         with pytest.raises(ValueError, match="app_code"):
             RainPointClient("1", "test@example.com", "testpass", MagicMock(), app_code=app_code)
@@ -2226,6 +2226,15 @@ class TestFetchProductCatalog:
         args, kwargs = client._session.get.call_args
         assert args == (f"{client._base_url}/app/common/core/productModel",)
         assert "auth" not in kwargs["headers"]
+
+    @pytest.mark.asyncio
+    async def test_client_method_sends_its_app_code(self):
+        """A HomGar client fetches the HomGar catalog."""
+        client = RainPointClient("1", "test@example.com", "testpass", MagicMock(), app_code=1)
+        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": []}))
+
+        await client.get_product_catalog()
+        assert client._session.get.call_args.kwargs["headers"]["appCode"] == "1"
 
 
 class TestTrimCatalog:
