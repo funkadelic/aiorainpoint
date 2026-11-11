@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/funkadelic/aiorainpoint/compare/v0.2.1...v0.3.0) (2026-11-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* add the model table and move modules behind the package root ([#36](https://github.com/funkadelic/aiorainpoint/issues/36))
+
+### Added
+
+* add the model table and move modules behind the package root ([#36](https://github.com/funkadelic/aiorainpoint/issues/36)) ([d1ff1ec](https://github.com/funkadelic/aiorainpoint/commit/d1ff1ec5873245bc958a18bc82c64d96c0c84507))
+
+
+### Other Changes
+
+* pin every hand-written model's decoder output ([#34](https://github.com/funkadelic/aiorainpoint/issues/34)) ([0644c5a](https://github.com/funkadelic/aiorainpoint/commit/0644c5ab1d694bc4c25852d25bdfab5d5c0dea72))
+
 ## [0.2.1](https://github.com/funkadelic/aiorainpoint/compare/v0.2.0...v0.2.1) (2026-11-11)
 
 
