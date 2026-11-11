@@ -1,0 +1,848 @@
+{
+  "HCS005FRF MOISTURE_SIMPLE_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "moisture_percent": 26,
+    "raw_bytes": "e1c600dc01881aff0f5e21f718",
+    "report_time": "2026-03-27T18:05:30",
+    "report_time_raw": 418849118,
+    "rssi_dbm": -58,
+    "type": "moisture_simple"
+  },
+  "HCS008FRF FLOWMETER_FLOWING_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "flowmeter",
+    "device_model": "HCS008FRF",
+    "flowbatt": 100,
+    "flowcurrenduration": 2,
+    "flowcurrentused": 0.1,
+    "flowlastused": 0.8,
+    "flowlastusedduration": 14,
+    "flowrate": 4.9,
+    "flowtotal": 2766.9,
+    "flowtotaltoday": 3.5,
+    "raw_bytes": "e1b200ff0bf36b0000dc01993100b7498e1a1aff0701000000af020000009f08000000ff0a0e000000cb23000000b3156c0000ff0f498e1a1a",
+    "report_time": "2026-08-13T08:57:09",
+    "report_time_raw": 437947977,
+    "rssi_dbm": -78,
+    "type": "flowmeter"
+  },
+  "HCS008FRF FLOWMETER_IDLE_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "flowmeter",
+    "device_model": "HCS008FRF",
+    "flowbatt": 100,
+    "flowcurrenduration": 0,
+    "flowcurrentused": 0.0,
+    "flowlastused": 0.2,
+    "flowlastusedduration": 17,
+    "flowrate": 0.0,
+    "flowtotal": 2869.3,
+    "flowtotaltoday": 0.5,
+    "raw_bytes": "e1b100ff0b10700000dc01990000b70cb01c1aff0700000000af000000009f02000000ff0a11000000cb05000000b315700000ff0f0cb01c1a",
+    "report_time": "2026-08-14T11:00:12",
+    "report_time_raw": 438087692,
+    "rssi_dbm": -79,
+    "type": "flowmeter"
+  },
+  "HCS012ARF RAIN_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "rain_last_24h_mm": 187.0,
+    "rain_last_24h_raw10": 1870,
+    "rain_last_7d_mm": 187.0,
+    "rain_last_7d_raw10": 1870,
+    "rain_last_hour_mm": 0.0,
+    "rain_last_hour_raw10": 0,
+    "rain_total_mm": 187.0,
+    "rain_total_raw10": 1870,
+    "raw_bytes": "e10000fd040000fd054e07fd064e07dc01974e070000ff0f0410f718",
+    "report_time": "2026-03-27T17:00:04",
+    "report_time_raw": 418844676,
+    "rssi_dbm": null,
+    "type": "rain"
+  },
+  "HCS014ARF SAMPLE_HCS014ARF_ASCII": {
+    "decoder": "temphum",
+    "humiditycurrent": 87,
+    "humidityhigh": 96,
+    "humiditylow": 78,
+    "raw_bytes": "312c302c313b363232283634352f3539352f31292c38372839362f37382f31292c",
+    "tempcurrent": 16.8,
+    "temphigh": 18.1,
+    "templow": 15.3,
+    "type": "temphum"
+  },
+  "HCS014ARF SAMPLE_HCS014ARF_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "temphum",
+    "humiditycurrent": 67,
+    "humidityhigh": 97,
+    "humiditylow": 37,
+    "raw_bytes": "e74a022603dc01b8058551028843e92561ff0f4a700b19",
+    "report_time": "2026-04-05T23:01:10",
+    "report_time_raw": 420180042,
+    "tempcurrent": 15.2,
+    "temphigh": 27.0,
+    "templow": 14.8,
+    "type": "temphum"
+  },
+  "HCS015ARF POOL_HCS0528ARF_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "pool",
+    "raw_bytes": "e74c026e02dc01b805856e02ff0febb9281a",
+    "report_time": "2026-08-20T11:39:43",
+    "report_time_raw": 438876651,
+    "tempcurrent": 16.77777777777778,
+    "type": "pool"
+  },
+  "HCS015ARF+ BASIC_HEX_PAYLOAD": {
+    "co2": null,
+    "decoder": "basic",
+    "device_model": "HCS0530THO",
+    "humidity_percent": null,
+    "rssi": -80,
+    "temperature_c": null,
+    "type": "co2"
+  },
+  "HCS021FRF MOISTURE_FULL_ASCII_PAYLOAD": {
+    "debug_info": {
+      "header_parts": [
+        "1",
+        "-73",
+        "1"
+      ],
+      "lux_data_parsed": "G=292478",
+      "payload_format": "ascii",
+      "raw_payload": "1,-73,1;694,70,G=292478",
+      "rssi_raw": -73,
+      "sensor_parts": [
+        "694",
+        "70",
+        "G=292478"
+      ]
+    },
+    "decoder": "hcs021frf_ascii",
+    "illuminance_lux": 29247.8,
+    "illuminance_raw10": 292478,
+    "moisture_percent": 70,
+    "raw_bytes": "312c2d37332c313b3639342c37302c473d323932343738",
+    "rssi_dbm": -73,
+    "temperature_c": 20.777777777777782,
+    "temperature_f10": 694,
+    "type": "moisture_full"
+  },
+  "HCS021FRF MOISTURE_FULL_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "hcs021frf_hex",
+    "illuminance_lux": 163.2,
+    "illuminance_raw10": 1632,
+    "moisture_percent": 31,
+    "raw_bytes": "e1a200dc0185ab02881fc6600600ff0ffa28f718",
+    "report_time": "2026-03-27T18:35:58",
+    "report_time_raw": 418851066,
+    "rssi_dbm": -94,
+    "temperature_c": 20.166666666666668,
+    "temperature_f10": 683,
+    "type": "moisture_full"
+  },
+  "HCS024FRF-V1 MOISTURE_FULL_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "hcs021frf_hex",
+    "illuminance_lux": 163.2,
+    "illuminance_raw10": 1632,
+    "moisture_percent": 31,
+    "raw_bytes": "e1a200dc0185ab02881fc6600600ff0ffa28f718",
+    "report_time": "2026-03-27T18:35:58",
+    "report_time_raw": 418851066,
+    "rssi_dbm": -94,
+    "temperature_c": 20.166666666666668,
+    "temperature_f10": 683,
+    "type": "moisture_full"
+  },
+  "HCS026FRF MOISTURE_SIMPLE_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "moisture_percent": 26,
+    "raw_bytes": "e1c600dc01881aff0f5e21f718",
+    "report_time": "2026-03-27T18:05:30",
+    "report_time_raw": 418849118,
+    "rssi_dbm": -58,
+    "type": "moisture_simple"
+  },
+  "HCS026FRF MOISTURE_SIMPLE_SECOND_CAPTURE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "moisture_percent": 37,
+    "raw_bytes": "e1c400dc018825ff0fe1c4fa19",
+    "report_time": "2026-07-29T12:19:33",
+    "report_time_raw": 435864801,
+    "rssi_dbm": -60,
+    "type": "moisture_simple"
+  },
+  "HCS044FRF RAIN_DETECTOR_DRY_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "rain_detected": false,
+    "raw_bytes": "dc01e1cb0010b7dc73021a20ff0f46013c1a",
+    "report_time": "2026-08-30T00:05:06",
+    "report_time_raw": 440140102,
+    "rssi_dbm": -53,
+    "type": "rain_detector"
+  },
+  "HCS044FRF RAIN_DETECTOR_WET_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "rain_detected": true,
+    "raw_bytes": "dc01e1c40011b737b51a1920ff0fda251c19",
+    "report_time": "2026-04-14T02:23:26",
+    "report_time_raw": 421275098,
+    "rssi_dbm": -60,
+    "type": "rain_detector"
+  },
+  "HCS0528ARF POOL_HCS0528ARF_HEX_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "pool",
+    "raw_bytes": "e74c026e02dc01b805856e02ff0febb9281a",
+    "report_time": "2026-08-20T11:39:43",
+    "report_time_raw": 438876651,
+    "tempcurrent": 16.77777777777778,
+    "type": "pool"
+  },
+  "HCS0530THO SAMPLE_HCS0530THO_ASCII": {
+    "co2": 486,
+    "co2high": 754,
+    "co2humidity": 54,
+    "co2low": 437,
+    "co2temp": 22.7,
+    "decoder": "co2",
+    "raw_bytes": "312c302c313b373238283735392f3732332f31292c35342835372f34342f31292c433d4536303144433035283735342f34333729",
+    "type": "co2"
+  },
+  "HCS0530THO SAMPLE_HCS0530THO_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "co2": 456,
+    "co2high": 499,
+    "co2humidity": 54,
+    "co2low": 415,
+    "co2temp": 27.4,
+    "decoder": "co2",
+    "raw_bytes": "cfc801dc05dc01e796022d03b806852d038836e9364dff089f01f301ff0fafb9fa18",
+    "report_time": "2026-03-29T11:38:47",
+    "report_time_raw": 419084719,
+    "type": "co2"
+  },
+  "HCS0530THO SAMPLE_HCS0530THO_HEX_2": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "co2": 459,
+    "co2high": 572,
+    "co2humidity": 63,
+    "co2low": 423,
+    "co2temp": 22.7,
+    "decoder": "co2",
+    "raw_bytes": "cfcb01dc05dc01e789028103b80585d802883fe92744ff08a7013c02ff0f944b1719",
+    "report_time": "2026-04-11T20:46:20",
+    "report_time_raw": 420957076,
+    "type": "co2"
+  },
+  "HIC801W SAMPLE_HIC801W_IDLE_PAYLOAD": {
+    "current_station": 0,
+    "decoder": "hic801w_hex",
+    "program_stations": [],
+    "program_stations_completed": [],
+    "raw_bytes": "108800af00000000b700204200d800f700000000f90000",
+    "rssi_dbm": null,
+    "run_duration_seconds": 0,
+    "run_ends_at": null,
+    "type": "irrigation_controller"
+  },
+  "HIC801W SAMPLE_HIC801W_STATION3_PAYLOAD": {
+    "current_station": 3,
+    "decoder": "hic801w_hex",
+    "program_stations": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "program_stations_completed": [
+      1,
+      2
+    ],
+    "raw_bytes": "108800af3c000000b70447151ad821f703ff0300f90000",
+    "rssi_dbm": null,
+    "run_duration_seconds": 60,
+    "run_ends_at": "2026-08-10T20:28:04",
+    "type": "irrigation_controller"
+  },
+  "HTP115FRF SAMPLE_HTP115_IDLE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "00e1cc00dc01d800b700000000ad00009f3200000020ff0f4ddad01a",
+    "report_time": "2026-11-08T13:41:13",
+    "report_time_raw": 449894989,
+    "rssi_dbm": -52,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 50,
+        "last_usage_gallons": 1.321,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTP160FRF SAMPLE_HTP160_IDLE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "00e1bb00dc01d800b700000000ad000020ff0f4c85dc19",
+    "report_time": "2026-07-14T08:21:12",
+    "report_time_raw": 433882444,
+    "rssi_dbm": -69,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV0540FRF VALVE_HUB_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "valve_hub_tlv",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "18dc0119d80125ad2c01",
+    "rssi_dbm": null,
+    "tlv_raw": {
+      "24": [
+        220,
+        1,
+        "01"
+      ],
+      "25": [
+        216,
+        1,
+        "01"
+      ],
+      "37": [
+        173,
+        300,
+        "2c01"
+      ]
+    },
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_raw": 300,
+        "duration_seconds": 300,
+        "open": true,
+        "state_raw": 1
+      }
+    }
+  },
+  "HTV113FRF SAMPLE_HTV113_IDLE_PAYLOAD": {
+    "battery_flag": 3,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "e1c100dc03d80020b700000000ad00009f00000000ff0f9b40d319",
+    "report_time": "2026-07-09T20:02:27",
+    "report_time_raw": 433275035,
+    "rssi_dbm": -63,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV145FRF SAMPLE_HTV145_AFTER_RUN_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "e1ae00dc01d80020b700000000ad00009fdb000000ff0f7212a71a",
+    "report_time": "2026-10-19T17:09:50",
+    "report_time_raw": 447156850,
+    "rssi_dbm": -82,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 219,
+        "last_usage_gallons": 5.785,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV145FRF SAMPLE_HTV145_CLOSED_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "e1bc00dc01d80020b700000000ad00009f95110000ff0f5d81d019",
+    "report_time": "2026-07-08T08:05:29",
+    "report_time_raw": 433095005,
+    "rssi_dbm": -68,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 4501,
+        "last_usage_gallons": 118.904,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV145FRF SAMPLE_HTV145_OPEN_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "e1c200dc01d82120b7ae44e319adb0049fa8020000ff0fae3ee319",
+    "report_time": "2026-07-17T19:58:46",
+    "report_time_raw": 434323118,
+    "rssi_dbm": -62,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 1200,
+        "event_time": "2026-07-17T20:18:46",
+        "last_usage_counts": 680,
+        "last_usage_gallons": 17.964,
+        "open": true,
+        "state_raw": 33
+      }
+    }
+  },
+  "HTV157B SAMPLE_HTV157B_IDLE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "ff0d00000000dc01e1be01d80020b700000000af000000009f00000000ff0fc34d4f1a",
+    "report_time": "2026-09-07T20:55:03",
+    "report_time_raw": 441404867,
+    "rssi_dbm": -66,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV157B SAMPLE_HTV157B_IDLE_PAYLOAD_LOW_BATTERY_FLAG": {
+    "battery_flag": 2,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "ff0d00000000dc02e1a601d80020b700000000af000000009f00000000ff0fb980461a",
+    "report_time": "2026-09-03T08:02:57",
+    "report_time_raw": 440828089,
+    "rssi_dbm": -90,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV210B SAMPLE_HTV210B_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv210b_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "37ff0d0000000018dc0117e1b40119d8001ad8001d201e2021b70000000022b70000000025af0000000026af00000000299f000000002a9f0000000038ff0d00000000feff0f1527fb19",
+    "report_time": "2026-07-29T18:28:21",
+    "report_time_raw": 435889941,
+    "rssi_dbm": -76,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV213FRF SAMPLE_HTV213_01_PREFIX_PAYLOAD": {
+    "battery_flag": 3,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1d30019d8001ad8001d201e2021b70000000022b70000000018dc0325ad000026ad0000299f000000002a9f00000000feff0fe86e0c19",
+    "report_time": "2026-04-06T06:59:40",
+    "report_time_raw": 420245224,
+    "rssi_dbm": -45,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV245FRF SAMPLE_HTV245_ASCII_PAYLOAD": {
+    "debug_info": {
+      "header_parts": [
+        "1",
+        "-84",
+        "1"
+      ],
+      "payload_format": "ascii",
+      "raw_payload": "1,-84,1;0,149,0,0,0,0|0,6,0,0,0,0",
+      "rssi_raw": -84,
+      "zone_sections": [
+        "0,149,0,0,0,0",
+        "0,6,0,0,0,0"
+      ],
+      "zones_found": 2
+    },
+    "decoder": "htv213frf_ascii",
+    "hub_online": true,
+    "hub_state_raw": "ascii_format",
+    "raw_bytes": "312c2d38342c313b302c3134392c302c302c302c307c302c362c302c302c302c30",
+    "rssi_dbm": -84,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "open": true,
+        "raw_ascii_data": "0,149,0,0,0,0",
+        "raw_zone_id": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "open": true,
+        "raw_ascii_data": "0,6,0,0,0,0",
+        "raw_zone_id": 0
+      }
+    }
+  },
+  "HTV245FRF SAMPLE_HTV245_FULL_IDLE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1db0018dc0119d8001ad8001d201e2021b70000000022b70000000025ad000026ad0000299fa50100002a9f30000000feff0f0270f219",
+    "report_time": "2026-07-25T07:00:02",
+    "report_time_raw": 435318786,
+    "rssi_dbm": -37,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 421,
+        "last_usage_gallons": 0.842,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 48,
+        "last_usage_gallons": 0.096,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV245FRF SAMPLE_HTV245_FULL_ZONE2_ACTIVE_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1d90018dc0119d8001ad8211d201e2021b70000000022b77327c91925ad000026ad7c0b299f140100002a9f00000000feff0f331ac919",
+    "report_time": "2026-07-04T17:40:51",
+    "report_time_raw": 432609843,
+    "rssi_dbm": -39,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 276,
+        "last_usage_gallons": 0.552,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 2940,
+        "event_time": "2026-07-04T18:29:51",
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": true,
+        "state_raw": 33
+      }
+    }
+  },
+  "HTV245FRF SAMPLE_HTV245_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "18dc0119d8011ad80025ad3c0026ad0000",
+    "rssi_dbm": null,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 60,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": true,
+        "state_raw": 1
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV345FRF SAMPLE_HTV345_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "2a9f00000000299f0000000017e1ca0019d8001ad8001bd8001d201e201f2018dc0121b70000000022b70000000023b70000000025ad000026ad000027ad00002b9f00000000feff0fec4bcb19",
+    "report_time": "2026-07-05T20:47:44",
+    "report_time_raw": 432753644,
+    "rssi_dbm": -54,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "3": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV405FRF SAMPLE_HTV405_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1cd0019d8001ad8001bd8001cd8001d201e201f20202018dc0121b70000000022b70000000023b70000000024b70000000025ad000026ad000027ad000028ad0000feff0f5b55d219",
+    "report_time": "2026-07-09T05:21:27",
+    "report_time_raw": 433214811,
+    "rssi_dbm": -51,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": false,
+        "state_raw": 0
+      },
+      "3": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": false,
+        "state_raw": 0
+      },
+      "4": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": null,
+        "last_usage_gallons": null,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV445FRF SAMPLE_HTV445_TLV_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "299f000000002a9f000000002b9f000000002c9f7400000017e1d50019d8001ad8001bd8001cd8001d201e201f20202018dc0121b70000000022b70000000023b70000000024b70000000025ad000026ad000027ad000028ad0000feff0ff6202b1a",
+    "report_time": "2026-08-21T18:03:54",
+    "report_time_raw": 439034102,
+    "rssi_dbm": -43,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "3": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "4": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 116,
+        "last_usage_gallons": 0.232,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HWS019WRF-V2 HWS019WRF_V2_PAYLOAD": {
+    "flags": [
+      1,
+      0,
+      1
+    ],
+    "raw": "1,0,1;707(707/694/1),42(42/39/1),P=9709(9709/9701/1),",
+    "reading_stats": {
+      "P": {
+        "max": "9709",
+        "min": "9701",
+        "unknown": "1"
+      },
+      "humidity": {
+        "max": "42",
+        "min": "39",
+        "unknown": "1"
+      },
+      "temp": {
+        "max": "707",
+        "min": "694",
+        "unknown": "1"
+      }
+    },
+    "readings": {
+      "P": "9709",
+      "humidity": "42",
+      "temp": "707"
+    },
+    "type": "hws019wrf_v2"
+  }
+}
