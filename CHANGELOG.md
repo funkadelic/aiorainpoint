@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1](https://github.com/funkadelic/aiorainpoint/compare/v0.2.0...v0.2.1) (2026-11-11)
+
+
+### Fixed
+
+* **catalog:** keep every model in the product catalog ([#33](https://github.com/funkadelic/aiorainpoint/issues/33)) ([7f7dd0d](https://github.com/funkadelic/aiorainpoint/commit/7f7dd0d9a7a71a174bfb888fb398de37aad2dbed))
+* **catalog:** refresh the product catalog snapshot ([#32](https://github.com/funkadelic/aiorainpoint/issues/32)) ([7539a81](https://github.com/funkadelic/aiorainpoint/commit/7539a8124cf5483b3eff5372be2da393643767fb))
+* fetch the product catalog without logging in ([#31](https://github.com/funkadelic/aiorainpoint/issues/31)) ([7031d08](https://github.com/funkadelic/aiorainpoint/commit/7031d08391df7b8172df2e151dd628a6d8f47004))
+
+
+### Other Changes
+
+* pin the submodule names ha-rainpoint imports ([#29](https://github.com/funkadelic/aiorainpoint/issues/29)) ([1a901a4](https://github.com/funkadelic/aiorainpoint/commit/1a901a49572c51d364c294c67761bdef8087ee8c))
+
 ## [0.2.0](https://github.com/funkadelic/aiorainpoint/compare/v0.1.2...v0.2.0) (2026-11-09)
 
 
