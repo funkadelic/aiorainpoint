@@ -51,8 +51,11 @@ class TestDecodeGenericSkipsHandWrittenModels:
         monkeypatch.setattr(generic_decoder_module, "get_catalog_entry", lambda model, model_code=None: fake_catalog)
 
         hand_written_model = next(iter(HAND_WRITTEN_MODELS))
-        result = decode_generic("10#DC", model=hand_written_model)
+        result = decode_generic("10#DC01", model=hand_written_model)
 
+        # The same frame is annotated for an unknown model, so an empty loop cannot pass.
+        assert any("catalog" in f for f in decode_generic("10#DC01", model="ZZUNKNOWN")["fields"])
+        assert result["fields"]
         for field in result["fields"]:
             assert "catalog" not in field
 
