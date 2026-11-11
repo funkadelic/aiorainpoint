@@ -2220,11 +2220,13 @@ class TestTrimCatalog:
     """Tests for scripts/refresh_product_catalog.py::trim_catalog (pure transform, no network)."""
 
     def test_keeps_every_named_model_and_drops_nameless_entries(self):
-        """No model-name filter: an unfamiliar family is kept, only an entry with no name is dropped."""
+        """No model-name filter: an unfamiliar family is kept, only an entry without a string name is dropped."""
         raw = [
             {"model": "BZ501FRF", "modelCode": 47, "dp": [{"dpCode": 1, "identity": "STA_TEM"}]},
             {"model": "", "dp": []},
             {"dp": []},
+            {"model": ["HTV245FRF"], "dp": []},
+            {"model": {"name": "HTV245FRF"}, "dp": []},
         ]
 
         assert list(trim_catalog(raw)) == ["BZ501FRF"]

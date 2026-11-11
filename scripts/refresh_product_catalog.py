@@ -87,8 +87,8 @@ def trim_catalog(raw: list[dict]) -> dict:
     whose values are {"portNumber": ..., "dp": [...]} records carrying whichever
     of _KEPT_PROVENANCE_FIELDS RainPoint supplied as booleans. Every named
     model is kept, with only its STA_/CTL_ dp entries, trimmed to
-    _KEPT_DP_FIELDS; a nameless entry and every other identity namespace are
-    dropped.
+    _KEPT_DP_FIELDS; an entry without a string name and every other identity
+    namespace are dropped.
 
     The model string alone is not a unique key: RainPoint maps some models to
     several modelCodes whose port counts genuinely differ (HIC801W is 0 ports
@@ -99,7 +99,7 @@ def trim_catalog(raw: list[dict]) -> dict:
     trimmed: dict[str, dict[str, dict]] = {}
     for entry in raw:
         model = entry.get("model")
-        if not model:
+        if not isinstance(model, str) or not model:
             continue
         model_code = entry.get("modelCode")
         variant = UNCODED_VARIANT if model_code is None else str(model_code)
