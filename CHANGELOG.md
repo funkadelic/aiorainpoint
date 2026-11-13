@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.1](https://github.com/funkadelic/aiorainpoint/compare/v0.3.0...v0.3.1) (2026-11-13)
+
+
+### Changed
+
+* **scripts:** read the trial script's decoders from the model table ([#38](https://github.com/funkadelic/aiorainpoint/issues/38)) ([30ae5e7](https://github.com/funkadelic/aiorainpoint/commit/30ae5e7904aa70feba6849fb7363a56603f87f60))
+
+
+### Other Changes
+
+* **pre-commit:** run pytest against a fresh install in the test venv ([#37](https://github.com/funkadelic/aiorainpoint/issues/37)) ([0c0de18](https://github.com/funkadelic/aiorainpoint/commit/0c0de18c2ceeae6af85d4d0475db8b68a93faa15))
+* publish a versioned API reference on GitHub Pages ([#40](https://github.com/funkadelic/aiorainpoint/issues/40)) ([05098f7](https://github.com/funkadelic/aiorainpoint/commit/05098f733d60b17d977fd84f4e611207017f8a7c))
+
 ## [0.3.0](https://github.com/funkadelic/aiorainpoint/compare/v0.2.1...v0.3.0) (2026-11-11)
 
 
