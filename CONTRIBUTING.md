@@ -54,9 +54,13 @@ Every action in `.github/workflows/` is pinned to a full commit SHA with the ver
 The API reference is built with [Zensical](https://zensical.org/) and mkdocstrings from the docstrings, in Google style. To preview it:
 
 ```bash
-uv pip install -r requirements-docs.txt   # in a separate venv
+uv venv ~/venvs/aiorainpoint-docs
+source ~/venvs/aiorainpoint-docs/bin/activate
+uv pip install -r requirements-docs.txt
 zensical serve
 ```
+
+Then open <http://localhost:8000>. It rebuilds on every save.
 
 CI builds it in strict mode on every PR, publishes `main` as `dev`, and publishes each release as its minor version with `latest` pointing at it.
 

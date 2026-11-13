@@ -128,9 +128,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Shared with the docs workflow, so two pushes to gh-pages never race.
+    # Its own group, so a dev deploy queued behind it can never replace it. A
+    # push that loses a race with a dev deploy fails and is re-run.
     concurrency:
-      group: gh-pages
+      group: gh-pages-release
       cancel-in-progress: false
 
     steps:
@@ -138,6 +139,7 @@ jobs:
         with:
           ref: ${{ needs.release-please.outputs.tag_name }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python 3.13
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -152,12 +154,15 @@ jobs:
       - name: Install the docs toolchain
         run: uv pip install --system -r requirements-docs.txt
 
+      # The token reaches git here only, after the toolchain is installed.
       - name: Deploy
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git fetch --no-tags origin gh-pages:gh-pages || true
           mike deploy --push --update-aliases "${VERSION%.*}" latest
           mike set-default --push latest

@@ -8,23 +8,19 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   # Strict, so a docstring that breaks the reference fails the pull request.
-  # A push to main also publishes the build as the dev version.
   docs:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    # Shared with the release workflow, so two pushes to gh-pages never race.
-    concurrency:
-      group: gh-pages
-      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          persist-credentials: ${{ github.event_name == 'push' }}
+          persist-credentials: false
 
       - name: Set up Python 3.13
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -42,10 +38,44 @@ jobs:
       - name: Build
         run: zensical build --strict
 
+  # Publishes main as the dev version.
+  deploy-dev:
+    needs: docs
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # A newer dev deploy may replace a pending one. Releases deploy in their own group.
+    concurrency:
+      group: gh-pages-dev
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Install the docs toolchain
+        run: uv pip install --system -r requirements-docs.txt
+
+      # The token reaches git here only, after the toolchain is installed.
       - name: Deploy dev
-        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git fetch --no-tags origin gh-pages:gh-pages || true
           mike deploy --push dev
