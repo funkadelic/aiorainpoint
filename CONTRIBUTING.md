@@ -43,7 +43,7 @@ mypy                # type-check
 
 `pytest` fails below 100% branch coverage.
 
-To run the same hooks on every commit, install [pre-commit](https://pre-commit.com/) and run `pre-commit install`. The hooks include the test suite, so commit with the venv active and the package reinstalled.
+To run the same hooks on every commit, install [pre-commit](https://pre-commit.com/) and run `pre-commit install`. The hooks include the test suite, which reinstalls the package into `~/venvs/aiorainpoint` and tests that install, so no venv needs to be active. Set `AIORAINPOINT_TEST_VENV` to use a venv somewhere else.
 
 CI runs `ruff`, `mypy` and the suite on every PR. The suite runs on Python 3.14, at the oldest supported versions of `aiohttp` and `paho-mqtt`, and against the built wheel. A separate job checks that the dependencies still resolve against Home Assistant's constraints. pre-commit.ci runs the hygiene hooks and pushes any fixes to the branch. Coverage goes to Codecov, and SonarCloud scans PRs that change source or test files.
 
