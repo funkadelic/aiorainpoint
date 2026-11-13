@@ -722,15 +722,53 @@
     "zones": {
       "1": {
         "duration_seconds": 0,
-        "open": true,
+        "open": false,
         "raw_ascii_data": "0,149,0,0,0,0",
-        "raw_zone_id": 0
+        "state_raw": 0
       },
       "2": {
         "duration_seconds": 0,
-        "open": true,
+        "open": false,
         "raw_ascii_data": "0,6,0,0,0,0",
-        "raw_zone_id": 0
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV245FRF SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD": {
+    "debug_info": {
+      "header_parts": [
+        "1",
+        "-67",
+        "1"
+      ],
+      "payload_format": "ascii",
+      "raw_payload": "1,-67,1;33,196,0,1776110281,2700,0|0,17,0,0,0,0",
+      "rssi_raw": -67,
+      "zone_sections": [
+        "33,196,0,1776110281,2700,0",
+        "0,17,0,0,0,0"
+      ],
+      "zones_found": 2
+    },
+    "decoder": "htv213frf_ascii",
+    "hub_online": true,
+    "hub_state_raw": "ascii_format",
+    "raw_bytes": "312c2d36372c313b33332c3139362c302c313737363131303238312c323730302c307c302c31372c302c302c302c30",
+    "rssi_dbm": -67,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 2700,
+        "open": true,
+        "raw_ascii_data": "33,196,0,1776110281,2700,0",
+        "state_raw": 33
+      },
+      "2": {
+        "duration_seconds": 0,
+        "open": false,
+        "raw_ascii_data": "0,17,0,0,0,0",
+        "state_raw": 0
       }
     }
   },

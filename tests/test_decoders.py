@@ -67,6 +67,8 @@ from tests.payload_samples import (
     SAMPLE_HIC801W_STATION3_PAYLOAD,
     SAMPLE_HTP115_IDLE_PAYLOAD,
     SAMPLE_HTP160_IDLE_PAYLOAD,
+    SAMPLE_HTV103_ASCII_CLOSED_PAYLOAD,
+    SAMPLE_HTV103_ASCII_WATERING_PAYLOAD,
     SAMPLE_HTV113_IDLE_PAYLOAD,
     SAMPLE_HTV145_AFTER_RUN_PAYLOAD,
     SAMPLE_HTV145_CLOSED_PAYLOAD,
@@ -79,6 +81,7 @@ from tests.payload_samples import (
     SAMPLE_HTV210B_TLV_PAYLOAD,
     SAMPLE_HTV213_01_PREFIX_PAYLOAD,
     SAMPLE_HTV245_ASCII_PAYLOAD,
+    SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD,
     SAMPLE_HTV245_FULL_IDLE_PAYLOAD,
     SAMPLE_HTV245_FULL_ZONE2_ACTIVE_PAYLOAD,
     SAMPLE_HTV245_TLV_PAYLOAD,
@@ -186,19 +189,19 @@ class TestDecodeHtv213frfValve:
         # Two zones expected
         assert len(result["zones"]) == 2
 
-        # Zone 1: state=149 (!=0 so open), duration=0
-        zone1 = result["zones"][1]
-        assert zone1["raw_zone_id"] == 0
-        assert zone1["open"] is True
-        assert zone1["duration_seconds"] == 0
-        assert zone1["raw_ascii_data"] == "0,149,0,0,0,0"
-
-        # Zone 2: state=6 (!=0 so open), duration=0
-        zone2 = result["zones"][2]
-        assert zone2["raw_zone_id"] == 0
-        assert zone2["open"] is True
-        assert zone2["duration_seconds"] == 0
-        assert zone2["raw_ascii_data"] == "0,6,0,0,0,0"
+        # Both zones idle; 149 and 6 are usage counts, not states.
+        assert result["zones"][1] == {
+            "open": False,
+            "duration_seconds": 0,
+            "state_raw": 0,
+            "raw_ascii_data": "0,149,0,0,0,0",
+        }
+        assert result["zones"][2] == {
+            "open": False,
+            "duration_seconds": 0,
+            "state_raw": 0,
+            "raw_ascii_data": "0,6,0,0,0,0",
+        }
 
         # debug_info carries the parse intermediates verbatim, for diagnostics.
         assert result["debug_info"]["payload_format"] == "ascii"
@@ -208,6 +211,18 @@ class TestDecodeHtv213frfValve:
         assert result["debug_info"]["zones_found"] == 2
         assert result["debug_info"]["rssi_raw"] == -84
         assert result["hub_state_raw"] == "ascii_format"
+
+    def test_ascii_running_zone_is_open_with_its_duration(self):
+        zones = decode_htv213frf_valve(SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD)["zones"]
+        assert (zones[1]["open"], zones[1]["duration_seconds"], zones[1]["state_raw"]) == (True, 2700, 0x21)
+        assert (zones[2]["open"], zones[2]["duration_seconds"]) == (False, 0)
+
+    def test_ascii_app_verified_run_then_close(self):
+        """Usage stays nonzero after the run ends, so only the state field can tell them apart."""
+        running = decode_htv213frf_valve(SAMPLE_HTV103_ASCII_WATERING_PAYLOAD)["zones"][1]
+        closed = decode_htv213frf_valve(SAMPLE_HTV103_ASCII_CLOSED_PAYLOAD)["zones"][1]
+        assert (running["open"], running["duration_seconds"]) == (True, 600)
+        assert (closed["open"], closed["duration_seconds"]) == (False, 0)
 
     def test_ascii_header_first_token_is_actually_validated(self):
         """A non-numeric leading header token must fail the decode, not be silently ignored.
@@ -229,11 +244,11 @@ class TestDecodeHtv213frfValve:
         result = decode_htv213frf_valve(raw)
         assert "error" in result
 
-    def test_ascii_zone_duration_reads_the_third_token_not_the_fourth(self):
-        """Duration comes from zone_parts[2]; a shifted index would read the wrong field."""
-        raw = "1,-84,1;0,149,7,8,0,0"
+    def test_ascii_zone_duration_reads_the_fifth_token(self):
+        """Duration comes from zone_parts[4]; a shifted index would read a neighbour."""
+        raw = "1,-84,1;0,149,7,8,600,9"
         result = decode_htv213frf_valve(raw)
-        assert result["zones"][1]["duration_seconds"] == 7
+        assert result["zones"][1]["duration_seconds"] == 600
 
     def test_ascii_zone_state_zero_is_closed_not_a_state_of_one_check(self):
         """Open is state != 0, not state != 1: a zero state must decode closed."""

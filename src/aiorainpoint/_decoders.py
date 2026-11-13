@@ -164,6 +164,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
 
     Format: 1,-84,1;0,149,0,0,0,0|0,6,0,0,0,0
     Structure: [flags],[rssi],[flags];[zone1_data]|[zone2_data]
+    Zone: [state],[usage],[?],[event_time],[duration_seconds],[?]
     """
 
     _LOGGER.debug("Decoding HTV213FRF ASCII payload")
@@ -209,26 +210,19 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
                 _LOGGER.warning("Invalid zone data format: %s", _RecordSummary(zone_data))
                 continue
 
-            # Parse zone data: [zone_id?, state, duration?, ?, ?, ?]
-            # Based on observed patterns:
-            # Zone 1: 0,149,0,0,0,0
-            # Zone 2: 0,6,0,0,0,0
+            # [state, usage, ?, event_time, duration, ?]. State uses the hex codes
+            # (0x21 = 33 open); field 1 is a usage count, not a state.
+            state = _ascii_int(zone_parts[0])
+            duration = _ascii_int(zone_parts[4])
 
-            zone_id_raw = _ascii_int(zone_parts[0])
-            state = _ascii_int(zone_parts[1])
-            duration = _ascii_int(zone_parts[2]) if len(zone_parts) > 2 else 0
-
-            # Map to sequential zone number
             zone_mapping[sequential_zone] = {
-                "raw_zone_id": zone_id_raw,
-                "open": state != 0x00,
+                "open": bool(state & 0x01),
                 "duration_seconds": duration,
+                "state_raw": state,
                 "raw_ascii_data": zone_data,
             }
 
-            _LOGGER.info(
-                "HTV213FRF ASCII Zone %d (raw ID %d): state=%d, duration=%d", sequential_zone, zone_id_raw, state, duration
-            )
+            _LOGGER.info("HTV213FRF ASCII Zone %d: state=0x%02X, duration=%d", sequential_zone, state, duration)
             sequential_zone += 1
 
         zones = zone_mapping

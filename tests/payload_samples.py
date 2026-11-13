@@ -4,6 +4,18 @@
 # Format: [flags],[rssi],[flags];[zone1_data]|[zone2_data]
 SAMPLE_HTV245_ASCII_PAYLOAD = "1,-84,1;0,149,0,0,0,0|0,6,0,0,0,0"
 
+# Legacy ASCII valve frames from the homeassistant-homgar project (MIT, same
+# copyright holder as this repo's LICENSE), tests/fixtures/payloads/, cited by
+# sample id. Not verified on hardware here. They fix the zone layout as
+# [state],[usage],[?],[event_time],[duration_seconds],[?].
+# HTV245FRF "dean-legacy-zone1-open-end-time": an owner's live capture, zone 1
+# running a 45-minute program, zone 2 idle with past usage.
+SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD = "1,-67,1;33,196,0,1776110281,2700,0|0,17,0,0,0,0"
+# HTV103FRF "watering-10min" and "closed-after-session-12L": one reporter's frames,
+# checked against the RainPoint app, during and after a 10-minute run.
+SAMPLE_HTV103_ASCII_WATERING_PAYLOAD = "1,-56,1;33,124,0,1784996333,600,0"
+SAMPLE_HTV103_ASCII_CLOSED_PAYLOAD = "1,-55,1;0,124,0,0,0,0"
+
 # Synthetic TLV payload for HTV245FRF device (11# prefix).
 # Constructed from TLV spec to exercise all code paths:
 #   DP 0x18 type 0xDC value 0x01 (hub online)
