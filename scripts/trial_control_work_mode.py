@@ -96,16 +96,20 @@ def _resolve_password() -> str | None:
     return getpass.getpass("RainPoint account password: ") or None
 
 
-def _decoder_for(model: str | None):
-    """Return the hand-written decoder for a model, or None to print raw only.
+def _spec_for(model: str | None):
+    """Return the hand-written model's spec, or None to print raw status only.
 
     Imported lazily so listing mode works even if a decoder module ever grows
     an import this standalone script cannot satisfy.
     """
     from aiorainpoint.models import MODELS
 
-    spec = MODELS.get(model or "")
-    return spec.decoder if spec else None
+    return MODELS.get(model or "")
+
+
+def _decoded_view(decoded: dict):
+    """Zones for a valve decode, otherwise the whole decode (the HIC801W reports one running station)."""
+    return decoded.get("zones") or {k: v for k, v in decoded.items() if k != "raw_bytes"}
 
 
 async def _collect_hubs(client) -> list[dict]:
@@ -165,6 +169,8 @@ def _print_status(label: str, entry: dict | None, decoder) -> None:
         if zones:
             for zone_num in sorted(zones):
                 print(f"{label}: zone {zone_num} -> {zones[zone_num]}")
+        else:
+            print(f"{label}: decoded {_decoded_view(decoded)}")
 
 
 async def _run_trial(args: argparse.Namespace, password: str) -> int:
@@ -217,12 +223,22 @@ async def _run_trial(args: argparse.Namespace, password: str) -> int:
             return 2
 
         mode = 1 if args.mode == "open" else 0
-        duration = args.duration if mode == 1 else 0
         model = sub.get("model")
-        decoder = _decoder_for(model)
+        spec = _spec_for(model)
+        decoder = spec.decoder if spec else None
+
+        # --duration is always seconds; the HIC801W reads its duration field in minutes.
+        duration = args.duration if mode == 1 else 0
+        unit = "s"
+        if spec and spec.duration_unit == "minutes":
+            if duration % 60:
+                print(f"{model} takes whole minutes; --duration must be a multiple of 60, got {args.duration}.", file=sys.stderr)
+                return 2
+            duration //= 60
+            unit = "min"
 
         print(f"Target: hub mid={args.mid} ({hub.get('name')!r}), sub addr={args.addr} model={model!r} ({sub.get('name')!r})")
-        print(f"Command: port={args.port} mode={mode} ({args.mode}) duration={duration}s")
+        print(f"Command: port={args.port} mode={mode} ({args.mode}) duration={duration}{unit}")
 
         status = await client.get_device_status(args.mid)
         _print_status("before", _status_entry_for(status, args.addr), decoder)
@@ -254,7 +270,7 @@ async def _run_trial(args: argparse.Namespace, password: str) -> int:
             print(f"controlWorkMode accepted; response state={response_state!r}")
             if decoder and isinstance(response_state, str):
                 try:
-                    print(f"response decoded: {decoder(response_state).get('zones')}")
+                    print(f"response decoded: {_decoded_view(decoder(response_state))}")
                 except Exception as exc:
                     print(f"response state did not decode: {exc!r}")
 
