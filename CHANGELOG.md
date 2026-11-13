@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.2](https://github.com/funkadelic/aiorainpoint/compare/v0.3.1...v0.3.2) (2026-11-13)
+
+
+### Fixed
+
+* read the battery flag on legacy ASCII frames and stop the rain and flow decoders failing on them ([#44](https://github.com/funkadelic/aiorainpoint/issues/44)) ([906ad95](https://github.com/funkadelic/aiorainpoint/commit/906ad95ca3e1adaacf9152268058e7c770396446))
+* stop reporting idle zones as open on legacy ASCII valve frames ([#43](https://github.com/funkadelic/aiorainpoint/issues/43)) ([3173b61](https://github.com/funkadelic/aiorainpoint/commit/3173b61a448981025c354fc65adc137ab39daa84))
+
+
+### Other Changes
+
+* pin upstream corpus frames for HCS012ARF, HTV113FRF and HTV213FRF ([#41](https://github.com/funkadelic/aiorainpoint/issues/41)) ([b1b14fe](https://github.com/funkadelic/aiorainpoint/commit/b1b14fee58ea73c4f9bbfce50f242fc66038f7b3))
+
 ## [0.3.1](https://github.com/funkadelic/aiorainpoint/compare/v0.3.0...v0.3.1) (2026-11-13)
 
 
