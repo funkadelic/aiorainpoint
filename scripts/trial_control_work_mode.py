@@ -102,19 +102,10 @@ def _decoder_for(model: str | None):
     Imported lazily so listing mode works even if a decoder module ever grows
     an import this standalone script cannot satisfy.
     """
-    import aiorainpoint as api
+    from aiorainpoint.models import MODELS
 
-    decoders = {
-        "HTV210B": api.decode_htv210b,
-        "HTV113FRF": api.decode_htv145frf,
-        "HTV145FRF": api.decode_htv145frf,
-        "HTV213FRF": api.decode_htv213frf_valve,
-        "HTV245FRF": api.decode_htv213frf_valve,
-        "HTV345FRF": api.decode_htv213frf_valve,
-        "HTV405FRF": api.decode_htv213frf_valve,
-        "HTV445FRF": api.decode_htv213frf_valve,
-    }
-    return decoders.get(model or "")
+    spec = MODELS.get(model or "")
+    return spec.decoder if spec else None
 
 
 async def _collect_hubs(client) -> list[dict]:
