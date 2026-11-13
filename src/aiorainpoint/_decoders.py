@@ -189,7 +189,7 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
 
         _flags1 = _ascii_int(header_parts[0])
         rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
-        _flags2 = _ascii_int(header_parts[2])
+        battery_flag = _ascii_int(header_parts[2])
 
         # Extract RSSI; positive values indicate a malformed payload.
         if rssi_raw >= 0:
@@ -239,6 +239,8 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
             "tlv_raw": {},
             "hub_online": hub_online,
             "hub_state_raw": "ascii_format",
+            "battery_flag": battery_flag,
+            "battery_percent": battery_flag_to_percent(battery_flag),
             "decoder": "htv213frf_ascii",
             "debug_info": {
                 "payload_format": "ascii",
@@ -874,7 +876,7 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
 
         _flags1 = _ascii_int(header_parts[0])
         rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
-        _flags2 = _ascii_int(header_parts[2])
+        battery_flag = _ascii_int(header_parts[2])
 
         # Extract RSSI; positive values indicate a malformed payload.
         if rssi_raw >= 0:
@@ -922,6 +924,8 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
             "temperature_f10": temp_raw,
             "illuminance_lux": lux,
             "illuminance_raw10": int(lux * 10) if lux else 0,
+            "battery_flag": battery_flag,
+            "battery_percent": battery_flag_to_percent(battery_flag),
             "decoder": "hcs021frf_ascii",
             "debug_info": {
                 "payload_format": "ascii",
@@ -1301,6 +1305,8 @@ def decode_rain(raw: str) -> dict:
     b[13:14]=0x074E=1870mm*10 → 187.0mm last 7d
     b[18:19]=0x074E=1870mm*10 → 187.0mm total
     """
+    if "#" not in raw and ";" in raw:
+        return _decode_rain_ascii(raw)
     b = _validate_payload(raw, 24)
 
     # Validate rain-specific tags
@@ -1340,6 +1346,39 @@ def decode_rain(raw: str) -> dict:
     )
     _attach_report_time(result, b)
     return result
+
+
+# R=total(last hour/last 24h/last 7d), each in tenths of a mm. A fourth window
+# value seen in one unverified frame is ignored.
+_ASCII_RAIN = re.compile(r"R=(\d+)\((\d+)/(\d+)/(\d+)(?:/\d+)?\)")
+
+
+def _decode_rain_ascii(raw: str) -> dict:
+    """Decode the legacy ASCII rain frame, e.g. 1,0,1;R=4870(10/20/430).
+
+    Layout confirmed against the RainPoint app for that frame: 487.0 mm total,
+    1.0 mm past hour, 2.0 mm past 24 hours, 43.0 mm past 7 days.
+    """
+    match = _ASCII_RAIN.search(raw.split(";", 1)[1])
+    if match is None:
+        raise ValueError(f"HCS012ARF: unrecognized ASCII rain frame of {len(raw)} characters")
+    total_raw10, last_hour_raw10, last_24h_raw10, last_7d_raw10 = (int(g) for g in match.groups())
+    return {
+        "type": "rain",
+        "rssi_dbm": _parse_ascii_rssi(raw),
+        "raw_bytes": raw.encode("ascii"),
+        "rain_last_hour_mm": last_hour_raw10 / 10.0,
+        "rain_last_24h_mm": last_24h_raw10 / 10.0,
+        "rain_last_7d_mm": last_7d_raw10 / 10.0,
+        "rain_total_mm": total_raw10 / 10.0,
+        "rain_last_hour_raw10": last_hour_raw10,
+        "rain_last_24h_raw10": last_24h_raw10,
+        "rain_last_7d_raw10": last_7d_raw10,
+        "rain_total_raw10": total_raw10,
+        # No owner has confirmed this model's header battery field.
+        "battery_flag": None,
+        "battery_percent": None,
+    }
 
 
 # HCS044FRF STA_RAIN values. The record is compact form, so its single byte is
@@ -1473,6 +1512,9 @@ def decode_flow_meter(raw: str) -> dict:
 
     _LOGGER.debug("Decoding HCS008FRF")
 
+    if "#" not in raw and ";" in raw:
+        return _decode_flow_meter_ascii(raw)
+
     # Every captured frame is 57 bytes. The floor rejects a payload too short to
     # carry this meter's datapoint set at all; the helper's implicit ceiling of
     # twice the floor leaves room for a firmware that adds a record or two,
@@ -1499,6 +1541,36 @@ def decode_flow_meter(raw: str) -> dict:
     )
     _attach_report_time(result, b)
     return result
+
+
+def _decode_flow_meter_ascii(raw: str) -> dict:
+    """Read only the header of a legacy ASCII flow frame.
+
+    No ASCII flow frame has been checked against the app, and the one capture
+    has three zero fields whose order it cannot settle, so the readings stay
+    unknown rather than guessed.
+    """
+    readings = (
+        "flowrate",
+        "flowcurrentused",
+        "flowcurrenduration",
+        "flowlastused",
+        "flowlastusedduration",
+        "flowtotaltoday",
+        "flowtotal",
+    )
+    return {
+        "type": "flowmeter",
+        "rssi_dbm": _parse_ascii_rssi(raw),
+        "raw_bytes": raw.encode("ascii"),
+        "device_model": "HCS008FRF",
+        **dict.fromkeys(readings),
+        # No owner has confirmed this model's header battery field.
+        "flowbatt": None,
+        "battery_flag": None,
+        "battery_percent": None,
+        "decoder": "flowmeter_ascii",
+    }
 
 
 # Alias for backward compatibility

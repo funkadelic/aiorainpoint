@@ -47,6 +47,23 @@
     "rssi_dbm": -79,
     "type": "flowmeter"
   },
+  "HCS008FRF SAMPLE_HCS008FRF_ASCII_PAYLOAD": {
+    "battery_flag": null,
+    "battery_percent": null,
+    "decoder": "flowmeter_ascii",
+    "device_model": "HCS008FRF",
+    "flowbatt": null,
+    "flowcurrenduration": null,
+    "flowcurrentused": null,
+    "flowlastused": null,
+    "flowlastusedduration": null,
+    "flowrate": null,
+    "flowtotal": null,
+    "flowtotaltoday": null,
+    "raw_bytes": "312c2d37312c313b31324232314131392c302c302c302c31362c3230382c343535312c353133383235",
+    "rssi_dbm": -71,
+    "type": "flowmeter"
+  },
   "HCS012ARF RAIN_HEX_PAYLOAD": {
     "battery_flag": 1,
     "battery_percent": 100,
@@ -61,6 +78,21 @@
     "raw_bytes": "e10000fd040000fd054e07fd064e07dc01974e070000ff0f0410f718",
     "report_time": "2026-03-27T17:00:04",
     "report_time_raw": 418844676,
+    "rssi_dbm": null,
+    "type": "rain"
+  },
+  "HCS012ARF SAMPLE_HCS012ARF_ASCII_PAYLOAD": {
+    "battery_flag": null,
+    "battery_percent": null,
+    "rain_last_24h_mm": 2.0,
+    "rain_last_24h_raw10": 20,
+    "rain_last_7d_mm": 43.0,
+    "rain_last_7d_raw10": 430,
+    "rain_last_hour_mm": 1.0,
+    "rain_last_hour_raw10": 10,
+    "rain_total_mm": 487.0,
+    "rain_total_raw10": 4870,
+    "raw_bytes": "312c302c313b523d343837302831302f32302f34333029",
     "rssi_dbm": null,
     "type": "rain"
   },
@@ -127,6 +159,8 @@
     "type": "co2"
   },
   "HCS021FRF MOISTURE_FULL_ASCII_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
     "debug_info": {
       "header_parts": [
         "1",
@@ -697,6 +731,8 @@
     }
   },
   "HTV245FRF SAMPLE_HTV245_ASCII_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
     "debug_info": {
       "header_parts": [
         "1",
@@ -735,6 +771,8 @@
     }
   },
   "HTV245FRF SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD": {
+    "battery_flag": 1,
+    "battery_percent": 100,
     "debug_info": {
       "header_parts": [
         "1",
