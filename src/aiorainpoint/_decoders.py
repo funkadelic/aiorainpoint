@@ -119,7 +119,7 @@ def decode_htv213frf_valve(raw: str) -> dict:
     Decode HTV213FRF/HTV245FRF valve hub payload.
 
     These devices support two formats:
-    1. Hex format (11#... or 01#...) - [dp_id][header][value...] records, walked
+    1. Hex format (11#... or 01#...) - `[dp_id][header][value...]` records, walked
        structurally
     2. ASCII format (1,-84,1;...) - uses comma-separated values
     """

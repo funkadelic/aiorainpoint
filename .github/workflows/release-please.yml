@@ -120,6 +120,76 @@ jobs:
         with:
           repository-url: ${{ github.event_name == 'workflow_dispatch' && inputs.ref != '' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
 
+  # Commits this release's reference to a local gh-pages as its minor version,
+  # with latest moved to it, and hands it on as a bundle. Patches overwrite
+  # their minor. Holds no write token.
+  docs-build:
+    needs: [release-please, publish]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Install the docs toolchain
+        run: uv pip install --system -r requirements-docs.txt
+
+      - name: Commit the release version
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags origin gh-pages:gh-pages || true
+          mike deploy --update-aliases "${VERSION%.*}" latest
+          mike set-default latest
+          git bundle create "$RUNNER_TEMP/pages.bundle" gh-pages
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pages
+          path: ${{ runner.temp }}/pages.bundle
+          if-no-files-found: error
+
+  # Pushes the bundle. Runs no repository code and no docs toolchain.
+  docs:
+    needs: docs-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Its own group, so a dev deploy queued behind it can never replace it. A
+    # push that loses a race with a dev deploy fails and is re-run with docs-build.
+    concurrency:
+      group: gh-pages-release
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pages
+
+      - name: Push gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init -q pages
+          git -C pages fetch -q "$PWD/pages.bundle" gh-pages:gh-pages
+          git -C pages -c http.https://github.com/.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push "https://github.com/$GITHUB_REPOSITORY" gh-pages
+
   # Opens a draft pull request on the integration that moves its pin to the
   # version just uploaded. Runs no repository code and holds no GITHUB_TOKEN
   # permission: the App token below is its only credential.

@@ -1,0 +1,4 @@
+zensical==0.1.1
+mkdocstrings-python==2.0.11
+# Zensical's mike fork, pinned to the 2.2.0+zensical-0.1.0 tag's commit. Interim until Zensical ships native versioning.
+mike @ git+https://github.com/squidfunk/mike.git@0f62791256ebeba60d20d2f1d8fe6ec3b7d1e2b3

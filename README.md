@@ -2,6 +2,8 @@
 
 Async Python client for the RainPoint Smart+ cloud API. It covers the REST endpoints, the MQTT push channel and the payload decoders for RainPoint valves, sensors and hubs. It is the client behind the [RainPoint Cloud](https://github.com/funkadelic/ha-rainpoint) Home Assistant integration.
 
+The API reference is at [funkadelic.github.io/aiorainpoint](https://funkadelic.github.io/aiorainpoint/).
+
 This project is not affiliated with or endorsed by RainPoint.
 
 ## Install

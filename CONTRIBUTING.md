@@ -49,6 +49,21 @@ CI runs `ruff`, `mypy` and the suite on every PR. The suite runs on Python 3.14,
 
 Every action in `.github/workflows/` is pinned to a full commit SHA with the version in a trailing comment, e.g. `uses: actions/checkout@3d3c42e... # v7.0.1`. A tag can be repointed at new code without review, so a new `uses:` line needs a SHA rather than `@v4`. Dependabot reads the trailing comment and bumps both parts together.
 
+## Docs
+
+The API reference is built with [Zensical](https://zensical.org/) and mkdocstrings from the docstrings, in Google style. To preview it:
+
+```bash
+uv venv ~/venvs/aiorainpoint-docs
+source ~/venvs/aiorainpoint-docs/bin/activate
+uv pip install -r requirements-docs.txt
+zensical serve
+```
+
+Then open <http://localhost:8000>. It rebuilds on every save.
+
+CI builds it in strict mode on every PR, publishes `main` as `dev`, and publishes each release as its minor version with `latest` pointing at it.
+
 ## Mutation testing (optional)
 
 ```bash
