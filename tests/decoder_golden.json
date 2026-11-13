@@ -64,6 +64,23 @@
     "rssi_dbm": null,
     "type": "rain"
   },
+  "HCS012ARF SAMPLE_HCS012ARF_UPSTREAM_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "rain_last_24h_mm": 0.0,
+    "rain_last_24h_raw10": 0,
+    "rain_last_7d_mm": 5.0,
+    "rain_last_7d_raw10": 50,
+    "rain_last_hour_mm": 0.0,
+    "rain_last_hour_raw10": 0,
+    "rain_total_mm": 660.0,
+    "rain_total_raw10": 6600,
+    "raw_bytes": "e10000fd040000fd050000fd063200dc0197c8190000ff0f44e0361a",
+    "report_time": "2026-08-27T14:01:04",
+    "report_time_raw": 439803972,
+    "rssi_dbm": null,
+    "type": "rain"
+  },
   "HCS014ARF SAMPLE_HCS014ARF_ASCII": {
     "decoder": "temphum",
     "humiditycurrent": 87,
@@ -365,6 +382,72 @@
       }
     }
   },
+  "HTV113FRF SAMPLE_HTV113FRF_UPSTREAM_CYCLE_SOAK_PAUSE": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "ff0d300c1c19e1a100dc01d82020b700000000ad302a9f00000000ff0f68601b19",
+    "report_time": "2026-04-13T22:01:40",
+    "report_time_raw": 421224552,
+    "rssi_dbm": -95,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 10800,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 32
+      }
+    }
+  },
+  "HTV113FRF SAMPLE_HTV113FRF_UPSTREAM_CYCLE_SOAK_RUN": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "ff0d2e0c1c19e1a000dc01d82320b76e5d1b19ad2c019f00000000ff0f2e5c1b19",
+    "report_time": "2026-04-13T21:48:46",
+    "report_time_raw": 421223470,
+    "rssi_dbm": -96,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 300,
+        "event_time": "2026-04-13T21:53:46",
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": true,
+        "state_raw": 35
+      }
+    }
+  },
+  "HTV113FRF SAMPLE_HTV113FRF_UPSTREAM_NORMAL_RUN": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv145frf_hex",
+    "hub_online": true,
+    "raw_bytes": "e1a800dc01d82120b7d75d1b19ad58029f00000000ff0f5c5b1b19",
+    "report_time": "2026-04-13T21:45:28",
+    "report_time_raw": 421223260,
+    "rssi_dbm": -88,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 600,
+        "event_time": "2026-04-13T21:55:23",
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": true,
+        "state_raw": 33
+      }
+    }
+  },
   "HTV113FRF SAMPLE_HTV113_IDLE_PAYLOAD": {
     "battery_flag": 3,
     "decoder": "htv145frf_hex",
@@ -517,6 +600,67 @@
       "2": {
         "duration_seconds": 0,
         "event_time": null,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV213FRF SAMPLE_HTV213FRF_UPSTREAM_LOW_BATTERY_HEX": {
+    "battery_flag": 2,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1cf0019d8001ad8001d201e2021b70000000022b70000000018dc0225ad000026ad0000299f000000002a9f00000000feff0fa69c0819",
+    "report_time": "2026-04-04T09:50:38",
+    "report_time_raw": 419994790,
+    "rssi_dbm": -49,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 0,
+        "last_usage_gallons": 0.0,
+        "open": false,
+        "state_raw": 0
+      }
+    }
+  },
+  "HTV213FRF SAMPLE_HTV213FRF_UPSTREAM_USAGE_HEX": {
+    "battery_flag": 1,
+    "battery_percent": 100,
+    "decoder": "htv213frf_hex",
+    "hub_online": true,
+    "hub_state_raw": null,
+    "raw_bytes": "17e1cd0019d8001ad8001d201e2021b70000000022b70000000018dc0125ad000026ad0000299fc80000002a9f5d000000feff0f7a8af818",
+    "report_time": "2026-03-28T08:41:58",
+    "report_time_raw": 418941562,
+    "rssi_dbm": -51,
+    "tlv_raw": {},
+    "type": "valve_hub",
+    "zones": {
+      "1": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 200,
+        "last_usage_gallons": 0.4,
+        "open": false,
+        "state_raw": 0
+      },
+      "2": {
+        "duration_seconds": 0,
+        "event_time": null,
+        "last_usage_counts": 93,
+        "last_usage_gallons": 0.186,
         "open": false,
         "state_raw": 0
       }

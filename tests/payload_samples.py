@@ -511,3 +511,30 @@ SAMPLE_HCS014ARF_ASCII = "1,0,1;622(645/595/1),87(96/78/1),"
 SAMPLE_HCS0530THO_HEX = "10#CFC801DC05DC01E796022D03B806852D038836E9364DFF089F01F301FF0FAFB9FA18"
 SAMPLE_HCS0530THO_HEX_2 = "10#CFCB01DC05DC01E789028103B80585D802883FE92744FF08A7013C02FF0F944B1719"
 SAMPLE_HCS0530THO_ASCII = "1,0,1;728(759/723/1),54(57/44/1),C=E601DC05(754/437)"
+
+# Frames from the homeassistant-homgar project (MIT, same copyright holder as
+# this repo's LICENSE), tests/fixtures/payloads/<MODEL>.json, cited by that
+# file's sample id. None was verified on hardware here, and that project's
+# expected values are not used: the golden file pins this repo's own decode.
+# Its issue numbers refer to that project's tracker.
+
+# HCS012ARF "issue-92-tlv-live": that project's maintainer's own unit. Its E1 00 00
+# record is the no-reading signal value, so it decodes with no RSSI.
+SAMPLE_HCS012ARF_UPSTREAM_HEX = "10#E10000FD040000FD050000FD063200DC0197C8190000FF0F44E0361A"
+# HTV113FRF: one owner's live captures, labeled by run mode in that project.
+# Excluded: "misting-irrigation" (state 0x22), whether it reads as open is unsettled.
+SAMPLE_HTV113FRF_UPSTREAM_NORMAL_RUN = "10#E1A800DC01D82120B7D75D1B19AD58029F00000000FF0F5C5B1B19"  # "watering-normal-end-time"
+SAMPLE_HTV113FRF_UPSTREAM_CYCLE_SOAK_RUN = (  # "watering-cycle-soak-end-times"
+    "10#FF0D2E0C1C19E1A000DC01D82320B76E5D1B19AD2C019F00000000FF0F2E5C1B19"
+)
+SAMPLE_HTV113FRF_UPSTREAM_CYCLE_SOAK_PAUSE = (  # "cycle-soak-off-pulse"
+    "10#FF0D300C1C19E1A100DC01D82020B700000000AD302A9F00000000FF0F68601B19"
+)
+# HTV213FRF "issue-11-comment-1" (both zones with usage) and "issue-11-comment-4"
+# (battery flag 2, low): from comments on its issue #11.
+SAMPLE_HTV213FRF_UPSTREAM_USAGE_HEX = (
+    "11#17E1CD0019D8001AD8001D201E2021B70000000022B70000000018DC0125AD000026AD0000299FC80000002A9F5D000000FEFF0F7A8AF818"
+)
+SAMPLE_HTV213FRF_UPSTREAM_LOW_BATTERY_HEX = (
+    "11#17E1CF0019D8001AD8001D201E2021B70000000022B70000000018DC0225AD000026AD0000299F000000002A9F00000000FEFF0FA69C0819"
+)
