@@ -15,6 +15,11 @@ SAMPLE_HTV245_ASCII_ZONE1_RUNNING_PAYLOAD = "1,-67,1;33,196,0,1776110281,2700,0|
 # checked against the RainPoint app, during and after a 10-minute run.
 SAMPLE_HTV103_ASCII_WATERING_PAYLOAD = "1,-56,1;33,124,0,1784996333,600,0"
 SAMPLE_HTV103_ASCII_CLOSED_PAYLOAD = "1,-55,1;0,124,0,0,0,0"
+# HCS012ARF from that project's issue #30, whose RainPoint app screenshot shows
+# 487.0 mm total, 1.0 past hour, 2.0 past 24 hours, 43.0 past 7 days.
+SAMPLE_HCS012ARF_ASCII_PAYLOAD = "1,0,1;R=4870(10/20/430)"
+# HCS008FRF "shaun-live-legacy-1": an owner's live capture, never checked against the app.
+SAMPLE_HCS008FRF_ASCII_PAYLOAD = "1,-71,1;12B21A19,0,0,0,16,208,4551,513825"
 
 # Synthetic TLV payload for HTV245FRF device (11# prefix).
 # Constructed from TLV spec to exercise all code paths:

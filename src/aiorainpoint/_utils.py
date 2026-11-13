@@ -369,6 +369,17 @@ def _parse_ascii_rssi(raw: str) -> int | None:
     return rssi if rssi < 0 else None
 
 
+def _parse_ascii_battery_flag(raw: str) -> int | None:
+    """Read the ASCII header's third token, the battery flag (1 normal, 2 low), or None."""
+    parts = raw.split(";", 1)[0].split(",")
+    if len(parts) < 3:
+        return None
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
+
+
 def parse_hub_broadcast_flag(param: object) -> bool | None:
     """Read the hub record's `param` index-1 broadcast flag, or None when it
     cannot be trusted.

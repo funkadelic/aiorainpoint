@@ -20,6 +20,7 @@ from aiorainpoint._utils import (
     _find_field_value,
     _is_dp_id_framed,
     _le16,
+    _parse_ascii_battery_flag,
     _parse_ascii_rssi,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
@@ -398,6 +399,17 @@ class TestIsAsciiPayload:
     def test_no_semicolon_no_hash_is_not_ascii(self):
         """A bare hex-looking string with neither marker is not ASCII-shaped."""
         assert is_ascii_payload("AABBCC") is False
+
+
+class TestParseAsciiBatteryFlag:
+    def test_reads_the_third_header_token(self):
+        assert _parse_ascii_battery_flag("1,-70,2;0") == 2
+
+    def test_short_header_is_none(self):
+        assert _parse_ascii_battery_flag("1,-70;0") is None
+
+    def test_non_integer_token_is_none(self):
+        assert _parse_ascii_battery_flag("1,-70,x;0") is None
 
 
 class TestParseAsciiRssi:

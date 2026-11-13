@@ -56,6 +56,8 @@ from tests.payload_samples import (
     RAIN_DETECTOR_WET_PAYLOAD,
     RAIN_DETECTOR_WET_SECOND_PAYLOAD,
     RAIN_HEX_PAYLOAD,
+    SAMPLE_HCS008FRF_ASCII_PAYLOAD,
+    SAMPLE_HCS012ARF_ASCII_PAYLOAD,
     SAMPLE_HCS014ARF_ASCII,
     SAMPLE_HCS014ARF_HEX,
     SAMPLE_HCS0530THO_ASCII,
@@ -500,10 +502,13 @@ class TestDecodeHtv213frfValve:
         assert result["battery_flag"] == 1
         assert result["battery_percent"] == 100
 
-    def test_ascii_payload_has_no_battery_percent(self):
-        """The ASCII firmware format carries no STA_BAT record, so the key is absent."""
+    def test_ascii_header_third_field_is_the_battery_flag(self):
         result = decode_htv213frf_valve(SAMPLE_HTV245_ASCII_PAYLOAD)
-        assert "battery_percent" not in result
+        assert (result["battery_flag"], result["battery_percent"]) == (1, 100)
+
+    def test_ascii_low_battery_flag_has_no_percentage(self):
+        result = decode_htv213frf_valve("1,-70,2;0,0,0,0,0,0|0,0,0,0,0,0")
+        assert (result["battery_flag"], result["battery_percent"]) == (2, None)
 
     def test_short_frame_reads_battery_from_its_sta_bat_record(self):
         """A frame with no report-time tail still carries STA_BAT and reports it."""
@@ -1040,6 +1045,8 @@ class TestDecodeMoistureFull:
             "temperature_f10": 694,
             "illuminance_lux": 29247.8,
             "illuminance_raw10": 292478,
+            "battery_flag": 1,
+            "battery_percent": 100,
             "decoder": "hcs021frf_ascii",
             "debug_info": {
                 "payload_format": "ascii",
@@ -3301,3 +3308,21 @@ class TestClimateDecoders:
     def test_ascii_header_of_zero_is_no_reading(self):
         """The samples' header of 0 means no signal value, not 0 dBm."""
         assert "rssi_dbm" not in decode_temphum(SAMPLE_HCS014ARF_ASCII)
+
+
+class TestLegacyAsciiRainAndFlow:
+    def test_rain_frame_matches_the_app_screenshot(self):
+        result = decode_rain(SAMPLE_HCS012ARF_ASCII_PAYLOAD)
+        readings = ("rain_total_mm", "rain_last_hour_mm", "rain_last_24h_mm", "rain_last_7d_mm")
+        assert tuple(result[k] for k in readings) == (487.0, 1.0, 2.0, 43.0)
+
+    def test_rain_frame_with_a_fourth_window_value_still_decodes(self):
+        assert decode_rain("1,-60,1;R=4870(10/20/430/2340)")["rain_last_7d_mm"] == 43.0
+
+    def test_unrecognized_rain_frame_raises(self):
+        with pytest.raises(ValueError, match="unrecognized ASCII rain frame"):
+            decode_rain("1,0,1;X=1")
+
+    def test_flow_frame_reports_header_only(self):
+        result = decode_flow_meter(SAMPLE_HCS008FRF_ASCII_PAYLOAD)
+        assert (result["rssi_dbm"], result["battery_flag"], result["flowtotal"]) == (-71, 1, None)
