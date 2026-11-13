@@ -3325,4 +3325,4 @@ class TestLegacyAsciiRainAndFlow:
 
     def test_flow_frame_reports_header_only(self):
         result = decode_flow_meter(SAMPLE_HCS008FRF_ASCII_PAYLOAD)
-        assert (result["rssi_dbm"], result["battery_flag"], result["flowtotal"]) == (-71, 1, None)
+        assert (result["rssi_dbm"], result["battery_flag"], result["flowtotal"]) == (-71, None, None)

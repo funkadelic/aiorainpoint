@@ -35,7 +35,6 @@ from ._utils import (
     _find_field_value,
     _is_dp_id_framed,
     _le16,
-    _parse_ascii_battery_flag,
     _parse_ascii_rssi,
     _parse_rainpoint_payload,
     _parse_tlv_payload,
@@ -1364,7 +1363,6 @@ def _decode_rain_ascii(raw: str) -> dict:
     if match is None:
         raise ValueError(f"HCS012ARF: unrecognized ASCII rain frame of {len(raw)} characters")
     total_raw10, last_hour_raw10, last_24h_raw10, last_7d_raw10 = (int(g) for g in match.groups())
-    battery_flag = _parse_ascii_battery_flag(raw)
     return {
         "type": "rain",
         "rssi_dbm": _parse_ascii_rssi(raw),
@@ -1377,8 +1375,9 @@ def _decode_rain_ascii(raw: str) -> dict:
         "rain_last_24h_raw10": last_24h_raw10,
         "rain_last_7d_raw10": last_7d_raw10,
         "rain_total_raw10": total_raw10,
-        "battery_flag": battery_flag,
-        "battery_percent": battery_flag_to_percent(battery_flag),
+        # No owner has confirmed this model's header battery field.
+        "battery_flag": None,
+        "battery_percent": None,
     }
 
 
@@ -1551,7 +1550,6 @@ def _decode_flow_meter_ascii(raw: str) -> dict:
     has three zero fields whose order it cannot settle, so the readings stay
     unknown rather than guessed.
     """
-    battery_flag = _parse_ascii_battery_flag(raw)
     readings = (
         "flowrate",
         "flowcurrentused",
@@ -1567,9 +1565,10 @@ def _decode_flow_meter_ascii(raw: str) -> dict:
         "raw_bytes": raw.encode("ascii"),
         "device_model": "HCS008FRF",
         **dict.fromkeys(readings),
-        "flowbatt": battery_flag_to_percent(battery_flag),
-        "battery_flag": battery_flag,
-        "battery_percent": battery_flag_to_percent(battery_flag),
+        # No owner has confirmed this model's header battery field.
+        "flowbatt": None,
+        "battery_flag": None,
+        "battery_percent": None,
         "decoder": "flowmeter_ascii",
     }
 
@@ -1613,9 +1612,6 @@ def _attach_frame_status(result: dict, b: bytes) -> None:
 def _attach_ascii_status(result: dict, raw: str) -> None:
     """Add the raw payload, plus rssi_dbm when the ASCII header has a reading."""
     result["raw_bytes"] = raw.encode("ascii")
-    battery_flag = _parse_ascii_battery_flag(raw)
-    result["battery_flag"] = battery_flag
-    result["battery_percent"] = battery_flag_to_percent(battery_flag)
     rssi = _parse_ascii_rssi(raw)
     if rssi is not None:
         result["rssi_dbm"] = rssi
