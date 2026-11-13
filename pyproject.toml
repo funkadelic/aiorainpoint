@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.urls]
+Documentation = "https://funkadelic.github.io/aiorainpoint/"
 Source = "https://github.com/funkadelic/aiorainpoint"
 
 [tool.hatch.build.targets.wheel]
