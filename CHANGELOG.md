@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/funkadelic/aiorainpoint/compare/v0.3.2...v0.3.3) (2026-11-14)
+
+
+### Other Changes
+
+* bump SonarSource/sonarqube-scan-action from 8.4.0 to 8.4.1 in the actions group ([#45](https://github.com/funkadelic/aiorainpoint/issues/45)) ([395b733](https://github.com/funkadelic/aiorainpoint/commit/395b733a98688a2c3b727cddfe3fa3c1d5064284))
+
 ## [0.3.2](https://github.com/funkadelic/aiorainpoint/compare/v0.3.1...v0.3.2) (2026-11-13)
 
 
