@@ -149,14 +149,37 @@
     "tempcurrent": 16.77777777777778,
     "type": "pool"
   },
-  "HCS015ARF+ BASIC_HEX_PAYLOAD": {
-    "co2": null,
-    "decoder": "basic",
-    "device_model": "HCS0530THO",
-    "humidity_percent": null,
-    "rssi": -80,
-    "temperature_c": null,
-    "type": "co2"
+  "HCS015ARF+ POOL_PLUS_HCS015ARF_PLUS_PAYLOAD": {
+    "ambient_tempcurrent": 18.8,
+    "ambient_temphigh": 19.9,
+    "ambient_templow": 18.4,
+    "decoder": "pool_plus",
+    "humidity_current": 49,
+    "humidity_high": 55,
+    "humidity_low": 46,
+    "pool_tempcurrent": 8.3,
+    "pool_temphigh": 10.1,
+    "pool_templow": 8.3,
+    "raw_bytes": "0ee7d501f50107dc01088592020a88310cdc010d85d5010be92e3709e78b02a602feff0fd508df1a",
+    "report_time": "2026-11-15T16:35:21",
+    "report_time_raw": 450824405,
+    "type": "pool_plus"
+  },
+  "HCS015ARF+ POOL_PLUS_HCS015ARF_PLUS_SECOND_PAYLOAD": {
+    "ambient_tempcurrent": 18.7,
+    "ambient_temphigh": 19.9,
+    "ambient_templow": 18.4,
+    "decoder": "pool_plus",
+    "humidity_current": 49,
+    "humidity_high": 55,
+    "humidity_low": 46,
+    "pool_tempcurrent": 8.3,
+    "pool_temphigh": 10.1,
+    "pool_templow": 8.3,
+    "raw_bytes": "0ee7d501f50107dc01088591020a88310cdc010d85d5010be92e3709e78b02a602feff0f6307df1a",
+    "report_time": "2026-11-15T16:29:35",
+    "report_time_raw": 450824035,
+    "type": "pool_plus"
   },
   "HCS021FRF MOISTURE_FULL_ASCII_PAYLOAD": {
     "battery_flag": 1,

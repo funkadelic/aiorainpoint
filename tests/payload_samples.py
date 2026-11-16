@@ -185,6 +185,14 @@ MOISTURE_SIMPLE_SECOND_CAPTURE_PAYLOAD = "10#E1C400DC018825FF0FE1C4FA19"
 #     which is 09:39:44Z in the cloud record's timestamp at UTC+2.
 POOL_HCS0528ARF_HEX_PAYLOAD = "10#E74C026E02DC01B805856E02FF0FEBB9281A"
 
+# Owner captures from an HCS015ARF+ (model code 305, firmware 1), ha-rainpoint
+# issue #347. The first was time-matched to the app: pool 8.3 C (8.3/10.1),
+# ambient 18.8 C (18.4/19.9), humidity 49% (46/55). The second, six minutes
+# earlier, differs only in ambient current (65.7 F, 18.7 C) and report time.
+# Records: dp 8/9 ambient, 10/11 humidity, 13/14 pool, 7/12 battery flags, no RSSI.
+POOL_PLUS_HCS015ARF_PLUS_PAYLOAD = "11#0EE7D501F50107DC01088592020A88310CDC010D85D5010BE92E3709E78B02A602FEFF0FD508DF1A"
+POOL_PLUS_HCS015ARF_PLUS_SECOND_PAYLOAD = "11#0EE7D501F50107DC01088591020A88310CDC010D85D5010BE92E3709E78B02A602FEFF0F6307DF1A"
+
 # Minimal hex payload for basic decoder smoke tests (2+ bytes: RSSI extractable).
 # E1=preamble, B0=rssi raw (176-256=-80), DC=tag, 01=value
 BASIC_HEX_PAYLOAD = "10#E1B000DC01"

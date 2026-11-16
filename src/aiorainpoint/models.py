@@ -146,7 +146,6 @@ MODELS: Mapping[str, ModelSpec] = MappingProxyType(
         HCS012ARF: _sensor(_d.decode_rain),
         HCS014ARF: _sensor(_d.decode_temphum),
         HCS015ARF: _sensor(_d.decode_hcs015arf),
-        # decode_pool_plus is a stub: no capture of this model exists yet.
         HCS015ARF_PLUS: _sensor(_d.decode_pool_plus),
         HCS021FRF: _sensor(_d.decode_moisture_full),
         HCS024FRF_V1: _sensor(_d.decode_hcs024frf_v1),

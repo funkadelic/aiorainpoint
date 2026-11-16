@@ -1637,31 +1637,57 @@ def _climate_ascii_readings(raw: str) -> tuple[list[int | None], list[int | None
     return readings[0], readings[1], co2
 
 
+# HCS015ARF+ readings by (prefix, current dp_id, range dp_id), from an
+# owner-verified capture matched against the RainPoint app.
+_POOL_PLUS_TEMP_DPS = (("pool", 13, 14), ("ambient", 8, 9))
+_POOL_PLUS_RH_DP = 10
+_POOL_PLUS_RH_RANGE_DP = 11
+# Battery flags on dp 7 and 12 stay undecoded: no capture says which probe each belongs to.
+_POOL_PLUS_READINGS = (
+    *(f"{prefix}_temp{kind}" for prefix, _, _ in _POOL_PLUS_TEMP_DPS for kind in ("current", "low", "high")),
+    "humidity_current",
+    "humidity_low",
+    "humidity_high",
+)
+
+
 def decode_pool_plus(raw: str) -> dict:
-    """Decode HCS0530THO (pool plus with CO2)."""
+    """Decode the HCS015ARF+ pool and ambient temperature/humidity payload.
 
-    _LOGGER.debug("Decoding HCS0530THO")
+    A dp_id-framed stream: each read is keyed on (dp_id, field) and width-checked,
+    so a record from another datapoint leaves its reading None. Temperatures are
+    signed Fahrenheit x 10; ranges pack low then high. The frame has no RSSI record.
+    """
 
-    result: dict[str, Any] = {
-        "type": "co2",
-        "device_model": "HCS0530THO",
-        "co2": None,
-        "temperature_c": None,
-        "humidity_percent": None,
-        "rssi": None,
-        "decoder": "basic",
-    }
+    _LOGGER.debug("Decoding HCS015ARF+")
+
+    result: dict[str, Any] = {"type": "pool_plus", "decoder": "pool_plus", **dict.fromkeys(_POOL_PLUS_READINGS)}
 
     try:
+        if not _is_dp_id_framed(raw):
+            return result
         b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+        records = _map_dp_records(b)
 
-        # Basic CO2 parsing - can be enhanced with exact RainPoint logic later
-        _LOGGER.debug("HCS0530THO basic parsing completed")
+        def record(dp_id: int, field: int, width: int) -> bytes | None:
+            value = records.get((dp_id, field))
+            return value if value is not None and len(value) == width else None
+
+        for prefix, current_dp, range_dp in _POOL_PLUS_TEMP_DPS:
+            if (current := record(current_dp, STA_TEM_FIELD, 2)) is not None:
+                result[f"{prefix}_tempcurrent"] = _tenths_c(int.from_bytes(current, "little", signed=True))
+            if (limits := record(range_dp, STA_TEM_RANGE_FIELD, 4)) is not None:
+                result[f"{prefix}_templow"] = _tenths_c(int.from_bytes(limits[:2], "little", signed=True))
+                result[f"{prefix}_temphigh"] = _tenths_c(int.from_bytes(limits[2:], "little", signed=True))
+        if (humidity := record(_POOL_PLUS_RH_DP, STA_RH_FIELD, 1)) is not None:
+            result["humidity_current"] = humidity[0]
+        if (limits := record(_POOL_PLUS_RH_RANGE_DP, STA_RH_RANGE_FIELD, 2)) is not None:
+            result["humidity_low"], result["humidity_high"] = limits[0], limits[1]
+        result["raw_bytes"] = b
+        _attach_report_time(result, b, dp_id_prefixed=True)
 
     except Exception:
-        _LOGGER.exception("Error in HCS0530THO decoder")
+        _LOGGER.exception("Error in HCS015ARF+ decoder")
 
     return result
 

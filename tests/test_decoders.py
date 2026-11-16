@@ -2,6 +2,7 @@
 
 import logging
 import traceback
+from typing import ClassVar
 
 import pytest
 
@@ -51,6 +52,8 @@ from tests.payload_samples import (
     MOISTURE_SIMPLE_HEX_PAYLOAD,
     MOISTURE_SIMPLE_SECOND_CAPTURE_PAYLOAD,
     POOL_HCS0528ARF_HEX_PAYLOAD,
+    POOL_PLUS_HCS015ARF_PLUS_PAYLOAD,
+    POOL_PLUS_HCS015ARF_PLUS_SECOND_PAYLOAD,
     RAIN_DETECTOR_DRY_PAYLOAD,
     RAIN_DETECTOR_DRY_SECOND_PAYLOAD,
     RAIN_DETECTOR_WET_PAYLOAD,
@@ -1376,20 +1379,6 @@ class TestBasicDecoders:
         assert result["type"] == "flowmeter"
         assert result["rssi_dbm"] == -79
 
-    def test_decode_pool_plus(self):
-        """Decode pool plus."""
-        # decode_pool_plus returns type="co2" (HCS0530THO pool/spa monitor)
-        result = decode_pool_plus(BASIC_HEX_PAYLOAD)
-        assert result["type"] == "co2"
-        assert result["rssi"] is not None
-        assert result["decoder"] == "basic"
-        # Fixed placeholder fields: this decoder never populates them from the
-        # payload, so they carry the same literal values on every call.
-        assert result["device_model"] == "HCS0530THO"
-        assert result["co2"] is None
-        assert result["temperature_c"] is None
-        assert result["humidity_percent"] is None
-
     def test_decode_co2(self):
         """Decode co2."""
         result = decode_co2(BASIC_HEX_PAYLOAD)
@@ -1439,11 +1428,6 @@ class TestBasicDecoderGuardBoundary:
         result = decode_unknown("10#E1B0")
         assert result["rssi"] is not None
         assert result["raw_bytes"] == bytes.fromhex("E1B0")
-
-    def test_decode_pool_plus_two_byte_buffer_enters_the_rssi_branch(self):
-        """At exactly two bytes, decode_pool_plus takes the rssi branch and sets a real value."""
-        result = decode_pool_plus("10#E1B0")
-        assert result["rssi"] is not None
 
     def test_decode_pool_one_byte_buffer_skips_the_field_walk(self):
         """decode_pool reads via _find_field_int, which never raises on a short
@@ -1911,12 +1895,6 @@ class TestBasicDecoderShortBufferBranches:
     which TestFlowMeterDecoder covers.
     """
 
-    def test_decode_pool_plus_short_buffer_leaves_rssi_none(self):
-        """0-byte buffer skips the rssi branch."""
-        result = decode_pool_plus("10#")
-        assert result["type"] == "co2"
-        assert result["rssi"] is None
-
     def test_decode_co2_short_buffer_leaves_readings_none(self):
         """0-byte buffer skips the field walk."""
         result = decode_co2("10#")
@@ -1953,12 +1931,6 @@ class TestBasicDecoderLogAndSwallowBranches:
     branch and returns the default dict with rssi=None. The flow meter no
     longer swallows, so it is covered in TestFlowMeterDecoder instead.
     """
-
-    def test_decode_pool_plus_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_pool_plus("garbage_no_separator")
-        assert result["type"] == "co2"
-        assert result["rssi"] is None
 
     def test_decode_co2_swallows_parse_error(self):
         """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
@@ -2030,6 +2002,49 @@ class TestPoolRealCapture:
 
         assert result["tempcurrent"] is None
         assert result["battery_percent"] == 100
+
+
+class TestDecodePoolPlus:
+    """HCS015ARF+ against the owner's app-matched captures."""
+
+    APP_READINGS: ClassVar[dict] = {
+        "pool_tempcurrent": 8.3,
+        "pool_templow": 8.3,
+        "pool_temphigh": 10.1,
+        "ambient_tempcurrent": 18.8,
+        "ambient_templow": 18.4,
+        "ambient_temphigh": 19.9,
+        "humidity_current": 49,
+        "humidity_low": 46,
+        "humidity_high": 55,
+    }
+
+    def test_capture_matches_the_app(self):
+        result = decode_pool_plus(POOL_PLUS_HCS015ARF_PLUS_PAYLOAD)
+        assert {key: result[key] for key in self.APP_READINGS} == self.APP_READINGS
+        assert result["type"] == "pool_plus"
+        assert result["report_time"] == "2026-11-15T16:35:21"
+        assert "rssi_dbm" not in result
+
+    def test_second_capture_differs_only_in_ambient_current(self):
+        result = decode_pool_plus(POOL_PLUS_HCS015ARF_PLUS_SECOND_PAYLOAD)
+        assert {key: result[key] for key in self.APP_READINGS} == {**self.APP_READINGS, "ambient_tempcurrent": 18.7}
+        assert result["report_time"] == "2026-11-15T16:29:35"
+
+    @pytest.mark.parametrize("raw", ["10#E1B000DC01", "11#", "11#ZZ", "garbage_no_separator"])
+    def test_unreadable_frame_leaves_every_reading_none(self, raw):
+        result = decode_pool_plus(raw)
+        assert all(result[key] is None for key in self.APP_READINGS)
+
+    def test_wrong_width_record_is_ignored(self, monkeypatch):
+        """A record under the right (dp_id, field) but the wrong width never becomes a reading."""
+        monkeypatch.setattr(
+            aiorainpoint._decoders,
+            "_map_dp_records",
+            lambda _b: {(13, 9): b"\x01", (14, 33): b"\x01\x02", (10, 10): b"\x01\x02", (11, 34): b"\x01"},
+        )
+        result = decode_pool_plus(POOL_PLUS_HCS015ARF_PLUS_PAYLOAD)
+        assert all(result[key] is None for key in self.APP_READINGS)
 
 
 class TestHtv213ZoneUsageAndEventTime:
