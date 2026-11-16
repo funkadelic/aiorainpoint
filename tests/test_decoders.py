@@ -70,7 +70,9 @@ from tests.payload_samples import (
     SAMPLE_HIC801W_REPORTER_FRAMES,
     SAMPLE_HIC801W_SECOND_UNIT_FRAMES,
     SAMPLE_HIC801W_STATION3_PAYLOAD,
+    SAMPLE_HTP115_AFTER_RUN_PAYLOAD,
     SAMPLE_HTP115_IDLE_PAYLOAD,
+    SAMPLE_HTP115_RUNNING_PAYLOAD,
     SAMPLE_HTP160_IDLE_PAYLOAD,
     SAMPLE_HTV103_ASCII_CLOSED_PAYLOAD,
     SAMPLE_HTV103_ASCII_WATERING_PAYLOAD,
@@ -849,6 +851,23 @@ class TestDecodeHtp115frf:
         assert zone["open"] is False
         assert zone["duration_seconds"] == 0
         assert zone["last_usage_counts"] == 50
+
+    def test_running_payload(self):
+        """A 1-minute run from Home Assistant: open, 60s, ending a minute after the app's start."""
+        zone = decode_htv145frf(SAMPLE_HTP115_RUNNING_PAYLOAD)["zones"][1]
+
+        assert zone["open"] is True
+        assert zone["state_raw"] == 0x21
+        assert zone["duration_seconds"] == 60
+        assert zone["event_time"] == "2026-11-15T10:47:25"
+
+    def test_after_run_payload(self):
+        """The report sent as that run ended: closed again, no duration or end time."""
+        zone = decode_htv145frf(SAMPLE_HTP115_AFTER_RUN_PAYLOAD)["zones"][1]
+
+        assert zone["open"] is False
+        assert zone["duration_seconds"] == 0
+        assert zone["event_time"] is None
 
 
 class TestLittleEndianTripwire:
