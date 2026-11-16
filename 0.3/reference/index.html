@@ -5431,7 +5431,10 @@ direction, and nothing reads it.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Decode HCS0530THO (pool plus with CO2).</p>
+        <p>Decode the HCS015ARF+ pool and ambient temperature/humidity payload.</p>
+<p>A dp_id-framed stream: each read is keyed on (dp_id, field) and width-checked,
+so a record from another datapoint leaves its reading None. Temperatures are
+signed Fahrenheit x 10; ranges pack low then high. The frame has no RSSI record.</p>
 
 
     </div>
