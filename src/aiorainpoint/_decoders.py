@@ -1642,6 +1642,7 @@ def _climate_ascii_readings(raw: str) -> tuple[list[int | None], list[int | None
 _POOL_PLUS_TEMP_DPS = (("pool", 13, 14), ("ambient", 8, 9))
 _POOL_PLUS_RH_DP = 10
 _POOL_PLUS_RH_RANGE_DP = 11
+# Battery flags on dp 7 and 12 stay undecoded: no capture says which probe each belongs to.
 _POOL_PLUS_READINGS = (
     *(f"{prefix}_temp{kind}" for prefix, _, _ in _POOL_PLUS_TEMP_DPS for kind in ("current", "low", "high")),
     "humidity_current",
