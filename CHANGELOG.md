@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4](https://github.com/funkadelic/aiorainpoint/compare/v0.3.3...v0.3.4) (2026-11-21)
+
+
+### Other Changes
+
+* bump SonarSource/sonarqube-scan-action from 8.4.1 to 8.5.0 in the actions group ([#50](https://github.com/funkadelic/aiorainpoint/issues/50)) ([f64b090](https://github.com/funkadelic/aiorainpoint/commit/f64b090731d00d7b7d1012cf546fc79b159e8658))
+* pin HTP115FRF running and after-run captures ([#48](https://github.com/funkadelic/aiorainpoint/issues/48)) ([a693558](https://github.com/funkadelic/aiorainpoint/commit/a693558e767da10f74c88c688c09ede9b5f67b24))
+* update pytest-asyncio requirement from &gt;=1.4.1.post1 to &gt;=1.5.0 ([#51](https://github.com/funkadelic/aiorainpoint/issues/51)) ([e808eea](https://github.com/funkadelic/aiorainpoint/commit/e808eeadff7a3b4136d26cfa2198362581c2d643))
+
 ## [0.3.3](https://github.com/funkadelic/aiorainpoint/compare/v0.3.2...v0.3.3) (2026-11-16)
 
 
