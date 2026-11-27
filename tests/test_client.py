@@ -1488,13 +1488,7 @@ class TestDisplacedSessionRecovery:
 
 
 class TestSessionInvalidationFloodVisibility:
-    """A sustained rejection reads differently in the log from a one-off one.
-
-    The cost itself is unchanged: a rejection still forces one re-login, and
-    bounding that is a separate decision. What changes is that a reporter's
-    log now says whether it happened once or keeps happening, which is the
-    thing nobody could tell before.
-    """
+    """A sustained rejection reads differently in the log from a one-off one, and backs off."""
 
     @pytest.mark.asyncio
     async def test_a_sustained_rejection_across_generations_warns_with_a_count(self, caplog):
@@ -1594,6 +1588,95 @@ class TestSessionInvalidationFloodVisibility:
 
         assert cutoff not in client._recent_invalidations
         assert len(client._recent_invalidations) == 1  # only the new one appended
+
+
+class TestReloginBackoff:
+    """A rejection flood defers forced re-logins with a doubling, capped backoff."""
+
+    @staticmethod
+    def _clock(monkeypatch):
+        """Pin the module clock; returns a one-item list holding the current time."""
+        now = [datetime(2025, 1, 1, tzinfo=UTC)]
+
+        class _Clock(datetime):
+            """A datetime whose now() reads the pinned time."""
+
+            @classmethod
+            def now(cls, tz=None):
+                """Return the pinned time."""
+                return now[0]
+
+        monkeypatch.setattr(_client_module, "datetime", _Clock)
+        return now
+
+    def _flood(self, client, now, count, gap_seconds=120):
+        """Record count rejections, gap_seconds apart, ending at the current time."""
+        for _ in range(count):
+            client._record_invalidation(1004)
+            now[0] += timedelta(seconds=gap_seconds)
+
+    @pytest.mark.asyncio
+    async def test_rejections_during_the_backoff_keep_the_token_and_calls_working(self, monkeypatch):
+        """During the backoff a rejection neither expires the token nor costs a login.
+
+        A code rejecting only the polled endpoint must leave other calls, valve
+        control included, going out on the current token. Once the backoff
+        passes, a rejection expires the token again.
+        """
+        now = self._clock(monkeypatch)
+        client = _make_client()
+        client._token = "live-token"
+        client._token_expires_at = now[0] + timedelta(days=60)
+        client._session.post = MagicMock(return_value=_mock_response(_login_json_body()))
+        self._flood(client, now, 3, gap_seconds=0)
+
+        client._session.get = MagicMock(return_value=_mock_response({"code": 1004, "msg": "session rejected"}))
+        with pytest.raises(RainPointApiError, match="code 1004"):
+            await client.get_devices_by_hid(hid=42)
+        assert client._token_expires_at is not None
+
+        client._session.get = MagicMock(return_value=_mock_response({"code": 0, "data": []}))
+        await client.get_devices_by_hid(hid=42)
+        client._session.post.assert_not_called()
+
+        now[0] = client._relogin_not_before
+        client._maybe_invalidate_token(1004, "live-token")
+        assert client._token_expires_at is None
+
+    def test_backoff_doubles_to_the_cap_and_holds(self, monkeypatch):
+        """Each rejection after the flood doubles the wait, even once the window count drops."""
+        now = self._clock(monkeypatch)
+        client = _make_client()
+        self._flood(client, now, 2)
+
+        waits = []
+        for _ in range(7):
+            client._record_invalidation(1004)
+            wait = (client._relogin_not_before - now[0]).total_seconds()
+            waits.append(wait)
+            now[0] += timedelta(seconds=wait + 120)
+
+        assert waits == [240, 480, 960, 1920, 3600, 3600, 3600]
+
+    def test_quiet_window_after_backoff_resets_it(self, monkeypatch):
+        """A rejection a full window after the backoff expired re-logs in without delay."""
+        now = self._clock(monkeypatch)
+        client = _make_client()
+        self._flood(client, now, 3, gap_seconds=0)
+
+        now[0] = client._relogin_not_before + timedelta(seconds=_client_module._INVALIDATION_FLOOD_WINDOW_SECONDS + 1)
+        client._record_invalidation(1001)
+
+        assert client._relogin_backoff_level == 0
+        assert client._relogin_not_before < now[0]
+
+    def test_below_threshold_sets_no_backoff(self):
+        """Two displacements are ordinary and never delay a re-login."""
+        client = _make_client()
+        client._record_invalidation(1001)
+        client._record_invalidation(1001)
+
+        assert client._relogin_not_before is None
 
 
 class TestTokenInvalidationListeners:

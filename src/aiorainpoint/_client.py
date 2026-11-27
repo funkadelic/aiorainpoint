@@ -43,10 +43,16 @@ _LOGIN_COOLDOWN_SECONDS = 120
 # within about four minutes and every rejection after that keeps the line in
 # front of the reader.
 #
-# Visibility only: nothing here throttles, and the cost is unchanged until the
-# bounding question is settled.
 _INVALIDATION_FLOOD_WINDOW_SECONDS = 3600
 _INVALIDATION_FLOOD_MIN_COUNT = 3
+
+# Once a flood is seen, rejections stop expiring the token for this long,
+# doubling up to the cap. Calls keep using the token meanwhile, so a code that
+# rejects only some endpoints leaves the others (valve control included)
+# working. The backoff persists until no rejection lands for a full flood
+# window after it expires, so a single displacement later on re-logs in at once.
+_RELOGIN_BACKOFF_BASE_SECONDS = 240
+_RELOGIN_BACKOFF_MAX_SECONDS = 3600
 
 # The RainPoint cloud edge (nginx) returns a bare HTTP 403 for Home Assistant's
 # default aiohttp User-Agent ("HomeAssistant/<ver> aiohttp/<ver> Python/<ver>")
@@ -177,6 +183,9 @@ class RainPointClient:
         # window. Only the log line reads it, so a client that never sees a
         # rejection carries an empty list forever.
         self._recent_invalidations: list[datetime] = []
+        # During a flood, rejections leave the token alone until this time.
+        self._relogin_backoff_level = 0
+        self._relogin_not_before: datetime | None = None
         # Set when the server throttles the login endpoint; blocks further
         # network login attempts until it passes.
         self._login_cooldown_until: datetime | None = None
@@ -277,6 +286,7 @@ class RainPointClient:
             and request_token is not None
             and request_token == self._token
             and self._token_expires_at is not None
+            and not self._in_relogin_backoff()
         ):
             self._record_invalidation(code)
             self._token_expires_at = None
@@ -291,8 +301,11 @@ class RainPointClient:
                 except Exception:
                     _LOGGER.exception("RainPoint token-invalidated listener raised; continuing")
 
+    def _in_relogin_backoff(self) -> bool:
+        return self._relogin_not_before is not None and datetime.now(UTC) < self._relogin_not_before
+
     def _record_invalidation(self, code) -> None:
-        """Log this invalidation, at WARNING once it is one of several in the window.
+        """Log this invalidation; once it is one of several in the window, warn and back off further ones.
 
         Every forced re-login used to log the same INFO line, so a session
         displaced once on Tuesday and a session re-authenticating every two
@@ -300,10 +313,12 @@ class RainPointClient:
         the window are what separate them, and they are what a reporter can
         paste without knowing any of this.
 
-        Reports the rate it observed and stops there. Whether the code really
+        Reports the rate it observed, not a cause. Whether the code really
         means a displaced session is exactly what is unsettled about 1001 and
         1004, so a line asserting the rejections are bogus would be stating the
-        thing nobody has confirmed.
+        thing nobody has confirmed. The backoff costs a genuinely displaced
+        session a delayed reconnect, which is the trade for not logging in once
+        per poll indefinitely.
 
         Counted per client rather than per token generation on purpose: the
         transition guard already holds each generation to one invalidation, so
@@ -316,18 +331,24 @@ class RainPointClient:
         line.
         """
         now = datetime.now(UTC)
-        cutoff = now - timedelta(seconds=_INVALIDATION_FLOOD_WINDOW_SECONDS)
+        window = timedelta(seconds=_INVALIDATION_FLOOD_WINDOW_SECONDS)
+        cutoff = now - window
         self._recent_invalidations = [seen for seen in self._recent_invalidations if seen > cutoff]
         self._recent_invalidations.append(now)
 
-        if len(self._recent_invalidations) >= _INVALIDATION_FLOOD_MIN_COUNT:
+        if self._relogin_not_before is not None and now - self._relogin_not_before > window:
+            self._relogin_backoff_level = 0
+        if len(self._recent_invalidations) >= _INVALIDATION_FLOOD_MIN_COUNT or self._relogin_backoff_level:
+            backoff = min(_RELOGIN_BACKOFF_BASE_SECONDS * 2**self._relogin_backoff_level, _RELOGIN_BACKOFF_MAX_SECONDS)
+            self._relogin_backoff_level += 1
+            self._relogin_not_before = now + timedelta(seconds=backoff)
             _LOGGER.warning(
                 "RainPoint session rejected %s times in the last %s minutes (code %s); "
-                "each rejection forces a full re-login, so at this rate the account is being "
-                "logged in once per poll",
+                "ignoring further rejections for %s minutes instead of re-logging in",
                 len(self._recent_invalidations),
                 _INVALIDATION_FLOOD_WINDOW_SECONDS // 60,
                 code,
+                backoff // 60,
             )
             return
         _LOGGER.info("RainPoint session rejected (code %s); forcing re-login on the next call", code)
@@ -350,22 +371,23 @@ class RainPointClient:
             _LOGIN_COOLDOWN_SECONDS,
         )
 
+    def _raise_if_login_blocked(self) -> None:
+        """Fast-fail, without a network call, during a server cooldown."""
+        remaining = self._cooldown_remaining()
+        if remaining > 0:
+            raise RainPointThrottledError(f"login throttled by server; cooling down {remaining:.0f}s before retry", remaining)
+
     async def ensure_logged_in(self) -> None:
         """Log in unless the token is valid; raise RainPointThrottledError, with no network call, during a server cooldown."""
         if self._token_valid():
             return
-        # Fast-fail without a network call while the server is throttling us.
-        remaining = self._cooldown_remaining()
-        if remaining > 0:
-            raise RainPointThrottledError(f"login throttled by server; cooling down {remaining:.0f}s before retry", remaining)
+        self._raise_if_login_blocked()
         async with self._login_lock:
             # Re-check under the lock: a concurrent caller may have already
             # logged in or tripped the cooldown while we waited for the lock.
             if self._token_valid():
                 return
-            remaining = self._cooldown_remaining()
-            if remaining > 0:
-                raise RainPointThrottledError(f"login throttled by server; cooling down {remaining:.0f}s before retry", remaining)
+            self._raise_if_login_blocked()
             await self._login()
 
     async def _login(self) -> None:
