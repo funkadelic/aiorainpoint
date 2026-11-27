@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/funkadelic/aiorainpoint/compare/v0.3.4...v0.3.5) (2026-11-27)
+
+
+### Added
+
+* back off re-logins when the cloud keeps rejecting the session ([#52](https://github.com/funkadelic/aiorainpoint/issues/52)) ([cefc483](https://github.com/funkadelic/aiorainpoint/commit/cefc4834a4f28d74e6af7364990f4d5214470ce3))
+
 ## [0.3.4](https://github.com/funkadelic/aiorainpoint/compare/v0.3.3...v0.3.4) (2026-11-21)
 
 
