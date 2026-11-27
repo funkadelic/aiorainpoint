@@ -40,8 +40,8 @@ _LOGIN_COOLDOWN_SECONDS = 120
 # an ordinary afternoon on an account someone also uses from the app, and a
 # WARNING on that is a false alarm in a support log. Nothing is lost by waiting:
 # at the default 120s poll a real flood is 30 an hour, so it reaches three
-# within about four minutes and every rejection after that keeps the line in
-# front of the reader.
+# within about four minutes, and the line repeats at each backoff step after
+# that.
 #
 _INVALIDATION_FLOOD_WINDOW_SECONDS = 3600
 _INVALIDATION_FLOOD_MIN_COUNT = 3
@@ -336,7 +336,7 @@ class RainPointClient:
         self._recent_invalidations = [seen for seen in self._recent_invalidations if seen > cutoff]
         self._recent_invalidations.append(now)
 
-        if self._relogin_not_before is not None and now - self._relogin_not_before > window:
+        if self._relogin_not_before is not None and now - self._relogin_not_before >= window:
             self._relogin_backoff_level = 0
         if len(self._recent_invalidations) >= _INVALIDATION_FLOOD_MIN_COUNT or self._relogin_backoff_level:
             backoff = min(_RELOGIN_BACKOFF_BASE_SECONDS * 2**self._relogin_backoff_level, _RELOGIN_BACKOFF_MAX_SECONDS)

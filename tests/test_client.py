@@ -1659,12 +1659,12 @@ class TestReloginBackoff:
         assert waits == [240, 480, 960, 1920, 3600, 3600, 3600]
 
     def test_quiet_window_after_backoff_resets_it(self, monkeypatch):
-        """A rejection a full window after the backoff expired re-logs in without delay."""
+        """A rejection a full window (inclusive) after the backoff expired resets the escalation."""
         now = self._clock(monkeypatch)
         client = _make_client()
         self._flood(client, now, 3, gap_seconds=0)
 
-        now[0] = client._relogin_not_before + timedelta(seconds=_client_module._INVALIDATION_FLOOD_WINDOW_SECONDS + 1)
+        now[0] = client._relogin_not_before + timedelta(seconds=_client_module._INVALIDATION_FLOOD_WINDOW_SECONDS)
         client._record_invalidation(1001)
 
         assert client._relogin_backoff_level == 0
