@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6](https://github.com/funkadelic/aiorainpoint/compare/v0.3.5...v0.3.6) (2026-11-28)
+
+
+### Other Changes
+
+* bump the actions group with 2 updates ([#54](https://github.com/funkadelic/aiorainpoint/issues/54)) ([440e64b](https://github.com/funkadelic/aiorainpoint/commit/440e64b9a63f8f15fe839484a342b02900af5b37))
+* bump zensical from 0.1.1 to 0.1.3 in the pip group ([#55](https://github.com/funkadelic/aiorainpoint/issues/55)) ([13423b9](https://github.com/funkadelic/aiorainpoint/commit/13423b9347e35abd7b9dfc007943ea7fd64c1520))
+
 ## [0.3.5](https://github.com/funkadelic/aiorainpoint/compare/v0.3.4...v0.3.5) (2026-11-27)
 
 
