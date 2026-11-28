@@ -1,7 +1,6 @@
 """Tests for RainPoint device decoders."""
 
 import logging
-import traceback
 from typing import ClassVar
 
 import pytest
@@ -9,6 +8,7 @@ import pytest
 import aiorainpoint
 from aiorainpoint import (
     SINGLE_OUTLET_GALLONS_PER_COUNT,
+    RainPointDecodeError,
     decode_co2,
     decode_flow_meter,
     decode_flowmeter,
@@ -119,30 +119,15 @@ class TestDecodeHtv213frfValve:
         result = decode_htv213frf_valve(SAMPLE_HTV245_ASCII_PAYLOAD)
         assert result["type"] == "valve_hub", f"Expected type='valve_hub', got {result['type']!r}"
 
-    def test_empty_payload_returns_error_dict(self):
-        """Empty string payload returns a dict with an error key instead of raising."""
-        result = decode_htv213frf_valve("")
-        assert isinstance(result, dict)
-        assert "error" in result
+    def test_empty_payload_raises(self):
+        """An empty payload raises RainPointDecodeError."""
+        with pytest.raises(RainPointDecodeError, match="Unexpected payload format: 0-character payload"):
+            decode_htv213frf_valve("")
 
-    def test_malformed_payload_returns_error_dict(self):
-        """Completely invalid payload returns a dict with an error key."""
-        result = decode_htv213frf_valve("not_a_valid_payload")
-        assert isinstance(result, dict)
-        assert "error" in result
-
-    def test_malformed_payload_error_envelope_is_the_documented_shape(self):
-        """The router's own error envelope carries every key the caller depends on."""
-        result = decode_htv213frf_valve("not_a_valid_payload")
-        assert result == {
-            "type": "valve_hub",
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "zones": {},
-            "tlv_raw": {},
-            "decoder": "htv213frf_error",
-            "error": "Unexpected payload format: 19-character payload",
-        }
+    def test_malformed_payload_raises(self):
+        """A completely invalid payload raises, reporting its length."""
+        with pytest.raises(RainPointDecodeError, match="Unexpected payload format: 19-character payload"):
+            decode_htv213frf_valve("not_a_valid_payload")
 
     def test_semicolon_with_no_comma_still_declines_rather_than_misrouting_to_ascii(self):
         """Routing requires a comma AND a semicolon-or-pipe, not either alone.
@@ -152,8 +137,8 @@ class TestDecodeHtv213frfValve:
         than being handed to the ASCII decoder, which would instead fail on
         its own header-parsing error.
         """
-        result = decode_htv213frf_valve("test;no_comma_here")
-        assert result["error"] == "Unexpected payload format: 18-character payload"
+        with pytest.raises(RainPointDecodeError, match="Unexpected payload format: 18-character payload"):
+            decode_htv213frf_valve("test;no_comma_here")
 
     def test_rssi_negative_value_preserved(self):
         """Negative RSSI value (-84) is preserved in the decoded output."""
@@ -238,8 +223,8 @@ class TestDecodeHtv213frfValve:
         header_parts[0] at all is that a malformed token there raises.
         """
         raw = "notanumber,-84,1;0,149,0,0,0,0|0,6,0,0,0,0"
-        result = decode_htv213frf_valve(raw)
-        assert "error" in result
+        with pytest.raises(RainPointDecodeError):
+            decode_htv213frf_valve(raw)
 
     def test_ascii_header_third_token_is_actually_validated(self):
         """A non-numeric trailing header token must fail the decode, not be silently ignored.
@@ -248,8 +233,8 @@ class TestDecodeHtv213frfValve:
         header_parts[2] at all is that a malformed token there raises.
         """
         raw = "1,-84,notanumber;0,149,0,0,0,0|0,6,0,0,0,0"
-        result = decode_htv213frf_valve(raw)
-        assert "error" in result
+        with pytest.raises(RainPointDecodeError):
+            decode_htv213frf_valve(raw)
 
     def test_ascii_zone_duration_reads_the_fifth_token(self):
         """Duration comes from zone_parts[4]; a shifted index would read a neighbour."""
@@ -626,46 +611,23 @@ class TestDecodeHtv145frf:
         assert result["zones"] == {}
         assert result["hub_online"] is False
 
-    def test_malformed_payload_returns_error_dict(self):
-        """A non-hex payload is caught and returned as a safe error dict."""
-        result = decode_htv145frf("10#not_hex")
-        assert result["type"] == "valve_hub"
-        assert result["decoder"] == "htv145frf_error"
-        assert result["zones"] == {}
-        assert "error" in result
+    def test_malformed_payload_raises(self):
+        """A non-hex payload raises, chained to the bytes.fromhex failure."""
+        with pytest.raises(RainPointDecodeError, match="non-hexadecimal") as excinfo:
+            decode_htv145frf("10#not_hex")
+        assert "position 0" in str(excinfo.value)
 
-    def test_malformed_payload_error_envelope_is_the_documented_shape(self):
-        """Every key of the error envelope, not just the ones spot-checked above."""
-        result = decode_htv145frf("10#not_hex")
-        # The error text comes from bytes.fromhex, so only its stable fragments are checked.
-        error = result.pop("error")
-        assert "non-hexadecimal" in error
-        assert "position 0" in error
-        assert result == {
-            "type": "valve_hub",
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "zones": {},
-            "tlv_raw": {},
-            "hub_online": False,
-            "battery_flag": None,
-            "decoder": "htv145frf_error",
-        }
-
-    def test_empty_payload_returns_error_dict(self):
-        """A payload missing the '#' separator is handled gracefully."""
-        result = decode_htv145frf("")
-        assert result["decoder"] == "htv145frf_error"
-        assert result["zones"] == {}
+    def test_empty_payload_raises(self):
+        """A payload missing the '#' separator raises."""
+        with pytest.raises(RainPointDecodeError):
+            decode_htv145frf("")
 
     def test_non_10_prefix_payload_is_rejected(self):
         """A 11# TLV payload is rejected before scanning, so bytes that coincide
         with HTV145 markers cannot fabricate hub-online or valve state."""
         # DC01 / D821 would read as hub-online + zone-1-open if scanned as markers.
-        result = decode_htv145frf("11#DC01D82100")
-        assert result["decoder"] == "htv145frf_error"
-        assert result["zones"] == {}
-        assert result.get("hub_online") is not True
+        with pytest.raises(RainPointDecodeError):
+            decode_htv145frf("11#DC01D82100")
 
 
 class TestDecodeHtv145frfLastUsage:
@@ -1084,14 +1046,14 @@ class TestDecodeMoistureFull:
     def test_ascii_header_first_token_is_actually_validated(self):
         """A non-numeric leading header token must fail the decode, not be silently ignored."""
         raw = "notanumber,-73,1;694,70,G=292478"
-        result = decode_moisture_full(raw)
-        assert "error" in result
+        with pytest.raises(RainPointDecodeError):
+            decode_moisture_full(raw)
 
     def test_ascii_header_third_token_is_actually_validated(self):
         """A non-numeric trailing header token must fail the decode, not be silently ignored."""
         raw = "1,-73,notanumber;694,70,G=292478"
-        result = decode_moisture_full(raw)
-        assert "error" in result
+        with pytest.raises(RainPointDecodeError):
+            decode_moisture_full(raw)
 
     def test_ascii_rssi_of_exactly_zero_is_rejected_as_out_of_range(self):
         """Zero is non-negative, so rssi_dbm must fall back to None, not 0."""
@@ -1143,22 +1105,16 @@ class TestDecodeHws019wrfV2:
         result = decode_hws019wrf_v2("1,0,1;,707(707/694/1)")
         assert result["readings"] == {"temp": "707"}
 
-    def test_missing_separator_routes_to_error_path(self):
-        """A payload with no ';' separator must surface via the error path, not return empty readings."""
-        result = decode_hws019wrf_v2("1,0,1")
-        assert result["type"] == "hws019wrf_v2"
-        assert "readings" not in result
-        assert "flags" not in result
-        assert "';'" in result["error"]
-        assert result["raw"] == "1,0,1"
+    def test_missing_separator_raises(self):
+        """A payload with no ';' separator raises."""
+        with pytest.raises(RainPointDecodeError, match="';'"):
+            decode_hws019wrf_v2("1,0,1")
 
-    def test_malformed_flag_token_routes_to_error_path(self):
-        """A non-digit flag token surfaces via the decoder's error path, not a partial list."""
-        result = decode_hws019wrf_v2("1,abc,0;707(707/694/1)")
-        assert result["type"] == "hws019wrf_v2"
-        assert "flags" not in result
-        assert "invalid flag token" in result["error"]
-        assert "abc" not in result["error"]
+    def test_malformed_flag_token_raises(self):
+        """A non-digit flag token raises, and the message does not echo the token."""
+        with pytest.raises(RainPointDecodeError, match="invalid flag token") as excinfo:
+            decode_hws019wrf_v2("1,abc,0;707(707/694/1)")
+        assert "abc" not in str(excinfo.value)
 
     def test_empty_flag_tokens_are_skipped(self):
         """Empty flag tokens (e.g. from a stray comma) are tolerated, not treated as malformed."""
@@ -1467,13 +1423,9 @@ class TestDecodeUnknown:
         assert result["decoder"] == "basic"
 
     def test_non_parseable_payload(self):
-        """Non parseable payload."""
-        # A payload missing the '#' separator triggers the except branch.
-        # decode_unknown handles it gracefully rather than raising.
-        result = decode_unknown("garbage-no-separator")
-        assert result["type"] == "unknown"
-        # rssi is None when the payload could not be parsed
-        assert result["rssi"] is None
+        """A payload missing the '#' separator raises."""
+        with pytest.raises(RainPointDecodeError):
+            decode_unknown("garbage-no-separator")
 
 
 class TestHcsDelegation:
@@ -1490,20 +1442,18 @@ class TestHtv213frfAsciiErrorBranches:
     """Cover ASCII-format error/guard branches inside _decode_htv213frf_ascii.
 
     These all enter via the public wrapper decode_htv213frf_valve, which
-    catches the inner re-raise and returns an error dict.
+    raises RainPointDecodeError for each.
     """
 
-    def test_ascii_missing_semicolon_returns_error_dict(self):
+    def test_ascii_missing_semicolon_raises(self):
         """Comma+pipe but no semicolon routes to ASCII then raises 'missing semicolon'."""
-        result = decode_htv213frf_valve("1,2,3|4,5,6")
-        assert result["decoder"] == "htv213frf_error"
-        assert "missing semicolon" in result["error"]
+        with pytest.raises(RainPointDecodeError, match="missing semicolon"):
+            decode_htv213frf_valve("1,2,3|4,5,6")
 
-    def test_ascii_short_header_returns_error_dict(self):
+    def test_ascii_short_header_raises(self):
         """Header with fewer than 3 comma-separated values triggers the header guard."""
-        result = decode_htv213frf_valve("1,2;0,0,0,0,0,0")
-        assert result["decoder"] == "htv213frf_error"
-        assert "header" in result["error"].lower()
+        with pytest.raises(RainPointDecodeError, match=r"(?i)header"):
+            decode_htv213frf_valve("1,2;0,0,0,0,0,0")
 
     def test_ascii_empty_zone_section_is_skipped(self):
         """An empty zone section (consecutive '|') is silently skipped, not fatal."""
@@ -1525,11 +1475,10 @@ class TestHtv213frfHexErrorBranches:
     and the zone helpers.
     """
 
-    def test_hex_invalid_hex_returns_error_dict(self):
-        """Non-hex characters after '11#' surface through the wrapper as an error dict."""
-        result = decode_htv213frf_valve("11#zz")
-        assert result["decoder"] == "htv213frf_error"
-        assert "non-hex" in result["error"].lower() or "hexadecimal" in result["error"].lower()
+    def test_hex_invalid_hex_raises(self):
+        """Non-hex characters after '11#' raise through the wrapper."""
+        with pytest.raises(RainPointDecodeError, match=r"(?i)non-hex|hexadecimal"):
+            decode_htv213frf_valve("11#zz")
 
     def test_hex_no_zone_dp_is_offline(self):
         """Hex payload carrying no zone DP yields hub_online=False."""
@@ -1577,22 +1526,10 @@ class TestHtv213frfHexErrorBranches:
 class TestDecodeMoistureFullErrorBranches:
     """Cover decode_moisture_full wrapper and _decode_moisture_full_ascii guards."""
 
-    def test_unknown_format_returns_error_dict(self):
-        """A payload matching neither hex nor ASCII layout yields an error dict."""
-        result = decode_moisture_full("not_matching_any_format")
-        assert result["decoder"] == "hcs021frf_error"
-        assert "Unexpected payload format" in result["error"]
-
-    def test_unknown_format_error_envelope_is_the_documented_shape(self):
-        """Every key of the error envelope, not just decoder/error."""
-        result = decode_moisture_full("not_matching_any_format")
-        assert result == {
-            "type": "moisture_full",
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "decoder": "hcs021frf_error",
-            "error": "Unexpected payload format: 23-character payload",
-        }
+    def test_unknown_format_raises(self):
+        """A payload matching neither hex nor ASCII layout raises."""
+        with pytest.raises(RainPointDecodeError, match="Unexpected payload format: 23-character payload"):
+            decode_moisture_full("not_matching_any_format")
 
     def test_comma_alone_with_no_semicolon_or_equals_does_not_misroute_to_ascii(self):
         """Routing requires a comma AND a semicolon-or-equals, not either alone.
@@ -1602,27 +1539,24 @@ class TestDecodeMoistureFullErrorBranches:
         handed to the ASCII decoder, which has no way to find its own
         header/body split in a string with no ';'.
         """
-        result = decode_moisture_full("1,2,3")
-        assert result["error"] == "Unexpected payload format: 5-character payload"
+        with pytest.raises(RainPointDecodeError, match="Unexpected payload format: 5-character payload"):
+            decode_moisture_full("1,2,3")
 
-    def test_invalid_hex_returns_error_dict(self):
-        """Bad hex characters after '10#' route through the wrapper exception path."""
-        result = decode_moisture_full("10#zz")
-        assert result["decoder"] == "hcs021frf_error"
-        assert result["type"] == "moisture_full"
+    def test_invalid_hex_raises(self):
+        """Bad hex characters after '10#' raise."""
+        with pytest.raises(RainPointDecodeError):
+            decode_moisture_full("10#zz")
 
-    def test_ascii_missing_semicolon_returns_error_dict(self):
+    def test_ascii_missing_semicolon_raises(self):
         """ASCII-shaped payload missing ';' raises inside the inner ASCII decoder."""
         # Comma + '=' routes to ASCII; missing ';' trips the inner guard.
-        result = decode_moisture_full("1,2=3")
-        assert result["decoder"] == "hcs021frf_error"
-        assert "missing semicolon" in result["error"]
+        with pytest.raises(RainPointDecodeError, match="missing semicolon"):
+            decode_moisture_full("1,2=3")
 
-    def test_ascii_short_header_returns_error_dict(self):
+    def test_ascii_short_header_raises(self):
         """ASCII header with fewer than 3 fields trips the header guard."""
-        result = decode_moisture_full("1,2;694,70,G=292478")
-        assert result["decoder"] == "hcs021frf_error"
-        assert "header" in result["error"].lower()
+        with pytest.raises(RainPointDecodeError, match=r"(?i)header"):
+            decode_moisture_full("1,2;694,70,G=292478")
 
     def test_ascii_non_negative_rssi_clamped_to_none(self):
         """Non-negative ASCII RSSI is clamped to None (hardware never reports >=0 dBm)."""
@@ -1630,11 +1564,10 @@ class TestDecodeMoistureFullErrorBranches:
         assert result["rssi_dbm"] is None
         assert result["decoder"] == "hcs021frf_ascii"
 
-    def test_ascii_short_sensor_section_returns_error_dict(self):
+    def test_ascii_short_sensor_section_raises(self):
         """ASCII sensor section with fewer than 3 fields trips the sensor-data guard."""
-        result = decode_moisture_full("1,-73,1;694,70")
-        assert result["decoder"] == "hcs021frf_error"
-        assert "sensor" in result["error"].lower()
+        with pytest.raises(RainPointDecodeError, match=r"(?i)sensor"):
+            decode_moisture_full("1,-73,1;694,70")
 
     def test_ascii_lux_with_multi_equals_falls_back_to_zero(self):
         """A lux token like 'G=A=B' splits into 3 parts and falls back to 0."""
@@ -1651,7 +1584,7 @@ class TestDecodeMoistureFullErrorBranches:
         result = decode_moisture_full("1,-73,1;694,70,abc")
         assert result["illuminance_lux"] == 0
 
-    def test_hex_payload_too_long_returns_error_dict(self):
+    def test_hex_payload_too_long_raises(self):
         """A 21-byte hex payload (>20) trips the explicit length cap."""
         # 21 valid bytes; first 20 mirror the documented layout, 21st is filler.
         too_long = bytes(
@@ -1679,9 +1612,8 @@ class TestDecodeMoistureFullErrorBranches:
                 0xAA,
             ]
         )
-        result = decode_moisture_full("10#" + too_long.hex())
-        assert result["decoder"] == "hcs021frf_error"
-        assert "too long" in result["error"]
+        with pytest.raises(RainPointDecodeError, match="too long"):
+            decode_moisture_full("10#" + too_long.hex())
 
 
 class TestDecodeRainTagGuards:
@@ -1724,20 +1656,12 @@ class TestDecodeRainTagGuards:
 
 
 class TestValveHubErrorPath:
-    """Cover decode_valve_hub error fallback and _extract_valve_hub_state default."""
+    """Cover decode_valve_hub's failure path and _extract_valve_hub_state default."""
 
-    def test_invalid_payload_returns_error_dict(self):
-        """Garbage input produces the documented error-shaped dict, not an exception."""
-        result = decode_valve_hub("garbage_no_separator")
-        assert result["type"] == "valve_hub"
-        assert result["decoder"] == "valve_hub_error"
-        assert result["zones"] == {}
-        assert result["raw_bytes"] == []
-        assert result["tlv_raw"] == {}
-        # A frame that did not decode carries no reading of any kind. This was
-        # 0, which a caller would render as a confident "0 dBm".
-        assert result["rssi_dbm"] is None
-        assert "missing" in result["error"].lower() or "unknown" in result["error"].lower()
+    def test_invalid_payload_raises(self):
+        """Garbage input raises."""
+        with pytest.raises(RainPointDecodeError, match=r"(?i)missing|unknown"):
+            decode_valve_hub("garbage_no_separator")
 
     def test_low_battery_flag_leaves_zones_online(self):
         """STA_BAT 2 is a charge reading, not a link state.
@@ -1942,33 +1866,18 @@ class TestBasicDecoderShortBufferBranches:
         assert result["rssi"] is None
 
 
-class TestBasicDecoderLogAndSwallowBranches:
-    """Cover the bare 'except Exception: log' blocks on the remaining basic decoders.
+class TestBasicDecoderParseFailures:
+    """The remaining basic decoders raise when _parse_rainpoint_payload rejects the payload.
 
-    Feeding a payload that survives the function entry but trips
-    _parse_rainpoint_payload (no '#' separator) reaches the log-and-swallow
-    branch and returns the default dict with rssi=None. The flow meter no
-    longer swallows, so it is covered in TestFlowMeterDecoder instead.
+    A payload with no '#' separator survives the function entry but fails the
+    parse. The flow meter is covered in TestFlowMeterDecoder.
     """
 
-    def test_decode_co2_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed."""
-        result = decode_co2("garbage_no_separator")
-        assert result["type"] == "co2"
-        assert result["co2"] is None
-
-    def test_decode_temphum_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed (HCS014ARF)."""
-        result = decode_temphum("garbage_no_separator")
-        assert result["type"] == "temphum"
-        assert result["tempcurrent"] is None
-
-    def test_decode_pool_swallows_parse_error(self):
-        """No '#' separator raises in _parse_rainpoint_payload, caught and swallowed (HCS0528ARF)."""
-        result = decode_pool("garbage_no_separator")
-        assert result["type"] == "pool"
-        assert result["tempcurrent"] is None
-        assert result["battery_percent"] is None
+    @pytest.mark.parametrize("decoder", [decode_co2, decode_temphum, decode_pool])
+    def test_parse_error_raises(self, decoder):
+        """No '#' separator raises in _parse_rainpoint_payload, wrapped as RainPointDecodeError."""
+        with pytest.raises(RainPointDecodeError):
+            decoder("garbage_no_separator")
 
 
 class TestPoolRealCapture:
@@ -2050,10 +1959,18 @@ class TestDecodePoolPlus:
         assert {key: result[key] for key in self.APP_READINGS} == {**self.APP_READINGS, "ambient_tempcurrent": 18.7}
         assert result["report_time"] == "2026-11-15T16:29:35"
 
-    @pytest.mark.parametrize("raw", ["10#E1B000DC01", "11#", "11#ZZ", "garbage_no_separator"])
-    def test_unreadable_frame_leaves_every_reading_none(self, raw):
-        result = decode_pool_plus(raw)
+    def test_empty_frame_leaves_every_reading_none(self):
+        result = decode_pool_plus("11#")
         assert all(result[key] is None for key in self.APP_READINGS)
+
+    @pytest.mark.parametrize("raw", ["10#E1B000DC01", "garbage_no_separator"])
+    def test_unframed_payload_raises(self, raw):
+        with pytest.raises(RainPointDecodeError, match="not dp_id-framed"):
+            decode_pool_plus(raw)
+
+    def test_non_hex_frame_raises(self):
+        with pytest.raises(RainPointDecodeError):
+            decode_pool_plus("11#ZZ")
 
     def test_wrong_width_record_is_ignored(self, monkeypatch):
         """A record under the right (dp_id, field) but the wrong width never becomes a reading."""
@@ -2375,23 +2292,11 @@ class TestDecodeHtv210b:
         zones = decode_htv210b("11#19D82125AF780000")["zones"]
         assert zones[1]["duration_seconds"] == 0
 
-    def test_non_hex_frame_returns_error_dict(self):
-        """A payload this decoder cannot read degrades to the family's error shape."""
-        result = decode_htv210b("10#208500968832DC64E0C5")
-        assert result["type"] == "valve_hub"
-        assert result["decoder"] == "htv210b_error"
-        assert result["hub_state_raw"] is None
-        assert result["zones"] == {}
-        assert result["raw_bytes"] == []
-        assert result["tlv_raw"] == {}
-        assert "error" in result
-        # The real exception message, not a mutated "None" placeholder.
-        assert result["error"] != "None"
-        # None, not 0: the RSSI sensor renders this verbatim, and 0 dBm would
-        # read as a perfect signal instead of no reading.
-        assert result["rssi_dbm"] is None
-        assert result["hub_online"] is False
-        assert result["battery_flag"] is None
+    def test_non_hex_frame_raises(self):
+        """A payload this decoder cannot read raises, with the real exception message."""
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_htv210b("10#208500968832DC64E0C5")
+        assert str(excinfo.value) not in ("", "None")
 
     def test_alarm_records_do_not_misframe_the_stream(self):
         """The compact 1-byte alarm records parse as themselves, not as a 2-byte type.
@@ -2442,9 +2347,10 @@ class TestDecodeHtv210bDpState:
         assert state_raw & 0x20  # bit 5: used latch
         assert state_raw == 0x21
 
-    def test_missing_comma_returns_none(self):
+    def test_missing_comma_raises(self):
         """A blob with no ',' separator at all is not the DP comma form."""
-        assert decode_htv210b_dp_state("D821AF3C000000B7D1230B1A") is None
+        with pytest.raises(RainPointDecodeError, match="missing ','"):
+            decode_htv210b_dp_state("D821AF3C000000B7D1230B1A")
 
     def test_hex_body_split_takes_the_leading_comma_not_the_trailing_one(self):
         """Only the mode digit precedes the split; a comma anywhere in what
@@ -2455,19 +2361,23 @@ class TestDecodeHtv210bDpState:
         through, misreading a blob that carries no real hex body as a
         legitimate one.
         """
-        assert decode_htv210b_dp_state("1,GARBAGE,D821") is None
+        with pytest.raises(RainPointDecodeError):
+            decode_htv210b_dp_state("1,GARBAGE,D821")
 
-    def test_odd_length_hex_body_returns_none(self):
+    def test_odd_length_hex_body_raises(self):
         """A truncated hex body cannot be read as bytes."""
-        assert decode_htv210b_dp_state("1,D821AF3C00000") is None
+        with pytest.raises(RainPointDecodeError):
+            decode_htv210b_dp_state("1,D821AF3C00000")
 
-    def test_empty_hex_body_returns_none(self):
+    def test_empty_hex_body_raises(self):
         """A comma with nothing after it carries no record to walk."""
-        assert decode_htv210b_dp_state("1,") is None
+        with pytest.raises(RainPointDecodeError):
+            decode_htv210b_dp_state("1,")
 
-    def test_body_with_no_work_state_record_returns_none(self):
+    def test_body_with_no_work_state_record_raises(self):
         """A body that never mentions the work-state field cannot describe a zone."""
-        assert decode_htv210b_dp_state("1,AF3C000000") is None
+        with pytest.raises(RainPointDecodeError):
+            decode_htv210b_dp_state("1,AF3C000000")
 
     def test_missing_duration_and_event_records_default_to_zero_and_none(self):
         """A body carrying only the work-state record still decodes: duration
@@ -2481,7 +2391,8 @@ class TestDecodeHtv210bDpState:
         """This decoder is not decode_htv210b: feeding it the poll's 11# frame
         must not accidentally succeed, since it carries no leading-digit comma
         form at all."""
-        assert decode_htv210b_dp_state(SAMPLE_HTV210B_TLV_PAYLOAD) is None
+        with pytest.raises(RainPointDecodeError):
+            decode_htv210b_dp_state(SAMPLE_HTV210B_TLV_PAYLOAD)
 
 
 # Expected decode for every one of the 22 committed HIC801W frames, keyed by
@@ -2729,20 +2640,10 @@ class TestDecodeHic801w:
         assert result["run_ends_at"] is None
 
     @pytest.mark.parametrize("raw", ["", "10#", None, "10#ABC"])
-    def test_empty_and_malformed_input_returns_the_error_envelope_never_raises(self, raw):
-        """The empty edge: none of these four inputs may raise, and each must
-        return the error envelope with every decoded field None."""
-        result = decode_hic801w(raw)
-        assert result["decoder"] == "hic801w_error"
-        assert result["type"] == "irrigation_controller"
-        assert result["current_station"] is None
-        assert result["program_stations"] is None
-        assert result["program_stations_completed"] is None
-        assert result["run_duration_seconds"] is None
-        assert result["run_ends_at"] is None
-        assert result["raw_bytes"] == []
-        assert result["rssi_dbm"] is None
-        assert "error" in result
+    def test_empty_and_malformed_input_raises(self, raw):
+        """Each of these four inputs raises RainPointDecodeError."""
+        with pytest.raises(RainPointDecodeError):
+            decode_hic801w(raw)
 
     def test_truncated_frame_missing_evtime_is_rejected(self):
         """A frame carrying STA_DURATION but truncated before STA_EVTIME
@@ -2751,9 +2652,8 @@ class TestDecodeHic801w:
         # SAMPLE_HIC801W_STATION3_PAYLOAD's body up through STA_DURATION's
         # record alone (fields 1, 10, 19), with everything after cut off.
         truncated = "10#108800AF3C000000"
-        result = decode_hic801w(truncated)
-        assert result["decoder"] == "hic801w_error"
-        assert "STA_EVTIME" in result["error"]
+        with pytest.raises(RainPointDecodeError, match="STA_EVTIME"):
+            decode_hic801w(truncated)
 
     def test_truncated_frame_missing_water_zones_is_rejected(self):
         """A frame carrying both STA_DURATION and STA_EVTIME but truncated
@@ -2761,9 +2661,8 @@ class TestDecodeHic801w:
         # SAMPLE_HIC801W_STATION3_PAYLOAD's body up through STA_EVTIME's
         # record (fields 1, 10, 19, 21), with everything after cut off.
         truncated = "10#108800AF3C000000B70447151A"
-        result = decode_hic801w(truncated)
-        assert result["decoder"] == "hic801w_error"
-        assert "STA_WATER_ZONES" in result["error"]
+        with pytest.raises(RainPointDecodeError, match="STA_WATER_ZONES"):
+            decode_hic801w(truncated)
 
     def test_stations_from_mask_is_ascending_and_1_based(self):
         """The ordering edge: a full mask yields every station in ascending
@@ -2775,95 +2674,43 @@ class TestDecodeHic801w:
         assert _hic801w_stations_from_mask(0x01) == [1]
         assert _hic801w_stations_from_mask(0x80) == [8]
 
-    def test_water_zones_b3_non_zero_is_rejected_with_exactly_one_sanitized_warning(self, caplog):
-        """A real capture's STA_WATER_ZONES b3 mutated to a non-zero
-        byte is rejected outright, and the rejection is exactly one WARNING
-        naming the field and the byte, carrying no cloud-supplied name."""
+    def test_water_zones_b3_non_zero_is_rejected_and_logs_nothing(self, caplog):
+        """A real capture's STA_WATER_ZONES b3 mutated to a non-zero byte is
+        rejected with the field and byte named, and nothing is logged."""
         # SAMPLE_HIC801W_STATION3_PAYLOAD's STA_WATER_ZONES value is 03FF0300;
         # flip the trailing (b3) byte from 00 to 01.
         mutated = SAMPLE_HIC801W_STATION3_PAYLOAD.replace("F703FF0300F9", "F703FF0301F9")
         assert mutated != SAMPLE_HIC801W_STATION3_PAYLOAD
 
-        with caplog.at_level(logging.WARNING, logger="aiorainpoint._decoders"):
-            result = decode_hic801w(mutated)
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint"), pytest.raises(RainPointDecodeError) as excinfo:
+            decode_hic801w(mutated)
 
-        assert result["decoder"] == "hic801w_error"
-        assert result["current_station"] is None
-        assert result["error"] == "HIC801W: STA_WATER_ZONES b3 unexpected non-zero value: 0x01"
+        assert str(excinfo.value) == "HIC801W: STA_WATER_ZONES b3 unexpected non-zero value: 0x01"
+        assert not [r for r in caplog.records if r.name.startswith("aiorainpoint")]
 
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) == 1
-        message = warnings[0].getMessage()
-        assert "STA_WATER_ZONES" in message
-        assert "b3" in message
-        # No cloud-supplied free text: decode_hic801w takes only the raw
-        # payload, so it structurally cannot echo a device, hub or home
-        # name into the line. "HIC801W" itself is a hardcoded literal in
-        # the log format string, the same way "HTV210B" is in
-        # decode_htv210b's own error log, not a cloud-supplied value.
-        for forbidden in ("Test Home", "Test Hub", "Test Sensor"):
-            assert forbidden not in message
-
-    def test_water_zones_b3_rejection_logs_nothing_above_warning(self, caplog):
-        """The b3 rejection is a diagnosed, expected condition, so the one
-        sanitized WARNING is the whole log record for it.
-
-        Returning the envelope rather than raising into the shared handler is
-        what keeps this true. Raising logged the same event a second time at
-        ERROR with a full traceback, and a device that persistently sends a
-        non-zero b3 repeats that on every poll, which reads as a recurring
-        crash rather than the handled rejection it is.
-        """
-        mutated = SAMPLE_HIC801W_STATION3_PAYLOAD.replace("F703FF0300F9", "F703FF0301F9")
-        assert mutated != SAMPLE_HIC801W_STATION3_PAYLOAD
-
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
-            result = decode_hic801w(mutated)
-
-        assert result["decoder"] == "hic801w_error"
-        assert [r.levelno for r in caplog.records] == [logging.WARNING]
-        assert not any(r.exc_info for r in caplog.records)
-
-    def test_no_error_log_carries_the_payload(self, caplog):
-        """No HIC801W log record echoes the payload, by either route.
-
-        The format string is the obvious route; the ValueError message is the
-        back door, because `_LOGGER.exception` prints the traceback and the
-        message travels inside it. Both are checked here against a payload
-        distinctive enough that a substring match cannot pass by accident.
-        The payload stays reachable through the disabled-by-default
-        _raw_payload diagnostic and the diagnostics download, so nothing
-        diagnostic depends on it being on this line.
-        """
+    def test_error_message_does_not_carry_the_payload(self):
+        """The exception message is what reaches a caller's log, so it must not echo the payload."""
         payload = "99#DEADBEEFCAFEBABE"
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
-            result = decode_hic801w(payload)
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_hic801w(payload)
 
-        assert result["decoder"] == "hic801w_error"
-        # getMessage() is the format string applied to its args; the traceback
-        # text is separate, and the ValueError message lives there.
-        rendered = "\n".join(r.getMessage() for r in caplog.records)
-        tracebacks = "\n".join(self._format_exc_text(r) for r in caplog.records)
-        for haystack in (rendered, tracebacks):
-            assert "DEADBEEF" not in haystack
-            assert payload not in haystack
-        assert "19-character blob" in rendered
+        assert "DEADBEEF" not in str(excinfo.value)
+        assert payload not in str(excinfo.value)
+        assert "19-character payload" in str(excinfo.value)
 
     @pytest.mark.parametrize(
         ("truncate_to", "field_name"),
         [(14, "STA_DURATION"), (24, "STA_EVTIME"), (38, "STA_WATER_ZONES")],
     )
-    def test_width_check_reports_a_width_not_the_field_bytes(self, truncate_to, field_name, caplog):
+    def test_width_check_reports_a_width_not_the_field_bytes(self, truncate_to, field_name):
         """A width rejection names the field and its observed width, never the
         bytes it read.
 
         These three checks are reached only by a payload that clears the 10#
         prefix check and parses as hex, which is why the prefix-check test
-        above cannot cover them. Their message travels into the traceback that
-        _LOGGER.exception prints, so interpolating the field's bytes put
-        payload content on the log line: this asserts the absence of a bytes
-        repr rather than of any particular byte, since the old form rendered
+        above cannot cover them. This asserts the absence of a bytes repr
+        rather than of any particular byte, since the old form rendered
         values such as b'\\x03\\xff\\x03' that share no text with the payload's
         own hex.
 
@@ -2873,19 +2720,16 @@ class TestDecodeHic801w:
         """
         truncated = "10#" + SAMPLE_HIC801W_STATION3_PAYLOAD[3:][:truncate_to]
 
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
-            result = decode_hic801w(truncated)
+        with pytest.raises(RainPointDecodeError, match=field_name) as excinfo:
+            decode_hic801w(truncated)
 
-        assert result["decoder"] == "hic801w_error"
-        assert field_name in result["error"]
-        assert result["error"].endswith("missing")
+        message = str(excinfo.value)
+        assert message.endswith("missing")
+        assert "b'" not in message
+        assert 'b"' not in message
+        assert "\\x" not in message
 
-        everything = result["error"] + "\n".join(self._format_exc_text(r) for r in caplog.records)
-        assert "b'" not in everything
-        assert 'b"' not in everything
-        assert "\\x" not in everything
-
-    def test_width_check_reports_a_narrow_but_whole_record_as_its_width(self, caplog):
+    def test_width_check_reports_a_narrow_but_whole_record_as_its_width(self):
         """A complete record narrower than the field needs reports that width.
 
         Distinct from the truncated frames above: here the record declares two
@@ -2893,24 +2737,14 @@ class TestDecodeHic801w:
         width the decoder needs rather than dropped as unreadable. Header 0xAD
         is STA_DURATION declared two bytes wide.
         """
-        with caplog.at_level(logging.DEBUG, logger="aiorainpoint._decoders"):
-            result = decode_hic801w("10#AD3C00")
+        with pytest.raises(RainPointDecodeError, match="STA_DURATION") as excinfo:
+            decode_hic801w("10#AD3C00")
 
-        assert result["decoder"] == "hic801w_error"
-        assert "STA_DURATION" in result["error"]
-        assert result["error"].endswith("2 bytes")
-
-        everything = result["error"] + "\n".join(self._format_exc_text(r) for r in caplog.records)
-        assert "b'" not in everything
-        assert 'b"' not in everything
-        assert "\\x" not in everything
-
-    @staticmethod
-    def _format_exc_text(record) -> str:
-        """Return a record's traceback text, or empty when it carries none."""
-        if not record.exc_info:
-            return ""
-        return "".join(traceback.format_exception(*record.exc_info))
+        message = str(excinfo.value)
+        assert message.endswith("2 bytes")
+        assert "b'" not in message
+        assert 'b"' not in message
+        assert "\\x" not in message
 
     def test_sta_ts_det_width_mismatch_never_rejects_a_real_frame(self):
         """STA_TS_DET arrives 2 bytes wide against a declared 4 in
@@ -2924,18 +2758,14 @@ class TestDecodeHic801w:
             assert len(ts_det) == 2, label
             assert decode_hic801w(raw)["decoder"] == "hic801w_hex", label
 
-    def test_neither_envelope_carries_a_key_for_an_unverified_reading(self):
-        """No key for STA_RAIN, STA_RH, STA_TS_DET or b3, in
-        either envelope, not even as an attribute, so a future field
-        addition to either branch trips this test."""
+    def test_result_carries_no_key_for_an_unverified_reading(self):
+        """No key for STA_RAIN, STA_RH, STA_TS_DET or b3, not even as an
+        attribute, so a future field addition trips this test."""
         forbidden_substrings = ("rain", "humidity", "ts_det", "b3")
-        happy = decode_hic801w(SAMPLE_HIC801W_STATION3_PAYLOAD)
-        error = decode_hic801w("")
-        for envelope in (happy, error):
-            for key in envelope:
-                lowered = key.lower()
-                for forbidden in forbidden_substrings:
-                    assert forbidden not in lowered, f"{key!r} in {envelope['decoder']} envelope"
+        for key in decode_hic801w(SAMPLE_HIC801W_STATION3_PAYLOAD):
+            lowered = key.lower()
+            for forbidden in forbidden_substrings:
+                assert forbidden not in lowered, f"{key!r} in decoded result"
 
     def test_hic801w_never_reaches_the_generic_decoder(self):
         """The trust boundary: decode_hic801w's own source never names the
@@ -3154,6 +2984,43 @@ def _exported_decoders():
     return [pytest.param(getattr(aiorainpoint, n), id=n) for n in names]
 
 
+class TestDecodeErrorContract:
+    """Every decoder fails the same way: RainPointDecodeError, chained to the cause."""
+
+    def test_non_str_payload_raises(self):
+        with pytest.raises(RainPointDecodeError, match="payload is bytes, not str"):
+            decode_co2(b"10#00")
+
+    def test_number_too_large_for_a_float_raises(self):
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_moisture_full("1,-73,1;" + "9" * 400 + ",70,G=1")
+        assert isinstance(excinfo.value.__cause__, OverflowError)
+
+    def test_non_ascii_payload_raises_without_echoing_it(self):
+        with pytest.raises(RainPointDecodeError, match="non-ASCII 23-character payload") as excinfo:
+            decode_htv213frf_valve("1,-84,1;0,149,0,0,0,0|\xe9")
+        assert "\xe9" not in str(excinfo.value)
+
+    def test_error_is_a_value_error_and_a_rainpoint_error(self):
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_htv145frf("10#not_hex")
+        assert isinstance(excinfo.value, ValueError)
+        assert isinstance(excinfo.value, aiorainpoint.RainPointError)
+
+    def test_parse_failure_is_chained_to_the_original_exception(self):
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_htv145frf("10#not_hex")
+        assert isinstance(excinfo.value.__cause__, ValueError)
+        assert not isinstance(excinfo.value.__cause__, RainPointDecodeError)
+
+    def test_decode_error_is_not_rewrapped(self):
+        """A decoder nested inside another keeps the inner error, still chained to the original."""
+        with pytest.raises(RainPointDecodeError) as excinfo:
+            decode_hcs005frf("10#not_hex")
+        assert isinstance(excinfo.value.__cause__, ValueError)
+        assert not isinstance(excinfo.value.__cause__, RainPointDecodeError)
+
+
 class TestPayloadsStayOutOfLogs:
     """Debug logs get pasted into public issues, so no decoder may write the payload to one."""
 
@@ -3186,20 +3053,22 @@ class TestPayloadsStayOutOfLogs:
                 parts.append(formatter.formatException(record.exc_info))
         return "\n".join(parts)
 
-    def test_error_log_reports_the_payload_length(self, caplog):
-        """The length still tells a truncated frame from a wrong one."""
-        with caplog.at_level(logging.ERROR, logger="aiorainpoint"):
+    def test_failure_raises_and_logs_nothing(self, caplog):
+        """The exception carries the diagnosis, so a failed decode writes no log record."""
+        with (
+            caplog.at_level(logging.DEBUG, logger="aiorainpoint"),
+            pytest.raises(RainPointDecodeError, match="11-character payload"),
+        ):
             decode_htv213frf_valve("99#DEADBEEF")
 
-        assert "11-character payload" in caplog.text
+        assert not caplog.records
 
-    def test_error_log_survives_a_non_string_payload(self, caplog):
-        """The handler runs because something was wrong, so it must not fail on the input too."""
-        with caplog.at_level(logging.ERROR, logger="aiorainpoint"):
-            result = decode_htv213frf_valve(None)
+    def test_non_string_payload_raises_and_logs_nothing(self, caplog):
+        """A non-str payload raises RainPointDecodeError without logging."""
+        with caplog.at_level(logging.DEBUG, logger="aiorainpoint"), pytest.raises(RainPointDecodeError, match="NoneType"):
+            decode_htv213frf_valve(None)
 
-        assert result["decoder"] == "htv213frf_error"
-        assert "0-character payload" in caplog.text
+        assert not caplog.records
 
     @pytest.mark.parametrize("decoder", _exported_decoders())
     @pytest.mark.parametrize("payload", PAYLOADS)

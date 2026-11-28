@@ -13,6 +13,7 @@ import aiorainpoint.models as models_module
 EXPECTED_PUBLIC_NAMES = {
     "RainPointApiError",
     "RainPointClient",
+    "RainPointDecodeError",
     "RainPointError",
     "RainPointMqttClient",
     "RainPointThrottledError",

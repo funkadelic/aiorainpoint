@@ -7,7 +7,7 @@ place. Model identifiers and the model table live in the ``models`` namespace.
 """
 
 from . import models as models
-from ._client import RainPointApiError, RainPointClient, RainPointError, RainPointThrottledError
+from ._client import RainPointApiError, RainPointClient, RainPointDecodeError, RainPointError, RainPointThrottledError
 from ._decoders import (
     SINGLE_OUTLET_GALLONS_PER_COUNT,
     USAGE_GALLONS_PER_COUNT,
@@ -71,6 +71,7 @@ __all__ = [
     "USAGE_GALLONS_PER_COUNT",
     "RainPointApiError",
     "RainPointClient",
+    "RainPointDecodeError",
     "RainPointError",
     "RainPointMqttClient",
     "RainPointThrottledError",
