@@ -36,7 +36,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The client logs in on the first call and refreshes its token as needed. Cloud errors raise `RainPointApiError`. A login refused for rate limiting raises its subclass `RainPointThrottledError`, which carries `retry_after` in seconds. Network errors come through as aiohttp's own exceptions.
+The client logs in on the first call and refreshes its token as needed. Cloud errors raise `RainPointApiError`. A login refused for rate limiting raises its subclass `RainPointThrottledError`, which carries `retry_after` in seconds. Network errors come through as aiohttp's own exceptions. A decoder that cannot read a payload raises `RainPointDecodeError`, a `ValueError`.
 
 ## Use a second account
 

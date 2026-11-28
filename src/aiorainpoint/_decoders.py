@@ -5,11 +5,14 @@ This module contains all device-specific decoder functions for different
 RainPoint device types.
 """
 
+import functools
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from ._client import RainPointDecodeError
 from ._utils import (
     STA_BAT_FIELD,
     STA_CO2_FIELD,
@@ -53,6 +56,26 @@ from ._validators import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _decoder(func: Callable[[str], dict]) -> Callable[[str], dict]:
+    """Raise RainPointDecodeError, chained to the cause, when func cannot read its payload."""
+
+    @functools.wraps(func)
+    def wrapper(raw: str) -> dict:
+        if not isinstance(raw, str):
+            raise RainPointDecodeError(f"payload is {type(raw).__name__}, not str")
+        if not raw.isascii():
+            # The codec error would quote the offending character.
+            raise RainPointDecodeError(f"non-ASCII {len(raw)}-character payload")
+        try:
+            return func(raw)
+        except RainPointDecodeError:
+            raise
+        except (ArithmeticError, ValueError, IndexError, KeyError, TypeError) as e:
+            raise RainPointDecodeError(str(e)) from e
+
+    return wrapper
 
 
 def _attach_report_time(result: dict, b: bytes, *, dp_id_prefixed: bool = False) -> None:
@@ -114,6 +137,7 @@ SINGLE_OUTLET_GALLONS_PER_COUNT = _FLOW_LITRES_PER_COUNT / _LITRES_PER_US_GALLON
 _TIMESTAMP_YEAR_BASE = 2020
 
 
+@_decoder
 def decode_htv213frf_valve(raw: str) -> dict:
     """
     Decode HTV213FRF/HTV245FRF valve hub payload.
@@ -123,31 +147,13 @@ def decode_htv213frf_valve(raw: str) -> dict:
        structurally
     2. ASCII format (1,-84,1;...) - uses comma-separated values
     """
-    try:
-        # Check payload format and route to appropriate decoder
-        if _is_dp_id_framed(raw):
-            return _decode_htv213frf_hex(raw)
-        elif "," in raw and (";" in raw or "|" in raw):
-            return _decode_htv213frf_ascii(raw)
-        else:
-            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
-
-    except Exception as e:
-        _LOGGER.exception("HTV213FRF router error for a %d-character payload", _payload_length(raw))
-        return {
-            "type": "valve_hub",
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "zones": {},
-            "tlv_raw": {},
-            "decoder": "htv213frf_error",
-            "error": str(e),
-        }
-
-
-def _payload_length(raw: object) -> int:
-    """Length for an error log line, safe to call from a handler whatever the decoder was handed."""
-    return len(raw) if isinstance(raw, str) else 0
+    # Check payload format and route to appropriate decoder
+    if _is_dp_id_framed(raw):
+        return _decode_htv213frf_hex(raw)
+    elif "," in raw and (";" in raw or "|" in raw):
+        return _decode_htv213frf_ascii(raw)
+    else:
+        raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
 
 
 def _ascii_int(token: str) -> int:
@@ -172,92 +178,87 @@ def _decode_htv213frf_ascii(raw: str) -> dict:
     zones = {}
     hub_online = False
 
-    try:
-        # Parse the ASCII format
-        # Example: 1,-84,1;0,149,0,0,0,0|0,6,0,0,0,0
+    # Parse the ASCII format
+    # Example: 1,-84,1;0,149,0,0,0,0|0,6,0,0,0,0
 
-        # Split on semicolon to separate header from zone data
-        if ";" not in raw:
-            raise ValueError("Invalid ASCII format: missing semicolon")
+    # Split on semicolon to separate header from zone data
+    if ";" not in raw:
+        raise ValueError("Invalid ASCII format: missing semicolon")
 
-        header_part, zone_part = raw.split(";", 1)
+    header_part, zone_part = raw.split(";", 1)
 
-        # Parse header: 1,-84,1
-        header_parts = header_part.split(",")
-        if len(header_parts) < 3:
-            raise ValueError("Invalid ASCII header format")
+    # Parse header: 1,-84,1
+    header_parts = header_part.split(",")
+    if len(header_parts) < 3:
+        raise ValueError("Invalid ASCII header format")
 
-        _flags1 = _ascii_int(header_parts[0])
-        rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
-        battery_flag = _ascii_int(header_parts[2])
+    _flags1 = _ascii_int(header_parts[0])
+    rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
+    battery_flag = _ascii_int(header_parts[2])
 
-        # Extract RSSI; positive values indicate a malformed payload.
-        if rssi_raw >= 0:
-            _LOGGER.warning("ASCII RSSI value %d is non-negative; expected negative dBm", rssi_raw)
-        rssi_dbm = rssi_raw if rssi_raw < 0 else None
+    # Extract RSSI; positive values indicate a malformed payload.
+    if rssi_raw >= 0:
+        _LOGGER.warning("ASCII RSSI value %d is non-negative; expected negative dBm", rssi_raw)
+    rssi_dbm = rssi_raw if rssi_raw < 0 else None
 
-        # Parse zone data: 0,149,0,0,0,0|0,6,0,0,0,0
-        zone_sections = zone_part.split("|")
-        zone_mapping = {}
-        sequential_zone = 1
+    # Parse zone data: 0,149,0,0,0,0|0,6,0,0,0,0
+    zone_sections = zone_part.split("|")
+    zone_mapping = {}
+    sequential_zone = 1
 
-        for zone_data in zone_sections:
-            if not zone_data.strip():
-                continue
+    for zone_data in zone_sections:
+        if not zone_data.strip():
+            continue
 
-            zone_parts = zone_data.split(",")
-            if len(zone_parts) < 6:
-                _LOGGER.warning("Invalid zone data format: %s", _RecordSummary(zone_data))
-                continue
+        zone_parts = zone_data.split(",")
+        if len(zone_parts) < 6:
+            _LOGGER.warning("Invalid zone data format: %s", _RecordSummary(zone_data))
+            continue
 
-            # [state, usage, ?, event_time, duration, ?]. State uses the hex codes
-            # (0x21 = 33 open); field 1 is a usage count, not a state.
-            state = _ascii_int(zone_parts[0])
-            duration = _ascii_int(zone_parts[4])
+        # [state, usage, ?, event_time, duration, ?]. State uses the hex codes
+        # (0x21 = 33 open); field 1 is a usage count, not a state.
+        state = _ascii_int(zone_parts[0])
+        duration = _ascii_int(zone_parts[4])
 
-            zone_mapping[sequential_zone] = {
-                "open": bool(state & 0x01),
-                "duration_seconds": duration,
-                "state_raw": state,
-                "raw_ascii_data": zone_data,
-            }
-
-            _LOGGER.info("HTV213FRF ASCII Zone %d: state=0x%02X, duration=%d", sequential_zone, state, duration)
-            sequential_zone += 1
-
-        zones = zone_mapping
-
-        # For ASCII format, assume hub is online if we got valid data
-        hub_online = True
-        _LOGGER.info("HTV213FRF ASCII hub state: online (valid ASCII data received)")
-
-        result = {
-            "type": "valve_hub",
-            "rssi_dbm": rssi_dbm,
-            "raw_bytes": raw.encode("ascii"),
-            "zones": zones,
-            "tlv_raw": {},
-            "hub_online": hub_online,
-            "hub_state_raw": "ascii_format",
-            "battery_flag": battery_flag,
-            "battery_percent": battery_flag_to_percent(battery_flag),
-            "decoder": "htv213frf_ascii",
-            "debug_info": {
-                "payload_format": "ascii",
-                "raw_payload": raw,
-                "header_parts": header_parts,
-                "zone_sections": zone_sections,
-                "zones_found": len(zones),
-                "rssi_raw": rssi_raw,
-            },
+        zone_mapping[sequential_zone] = {
+            "open": bool(state & 0x01),
+            "duration_seconds": duration,
+            "state_raw": state,
+            "raw_ascii_data": zone_data,
         }
 
-        _LOGGER.info("HTV213FRF ASCII decoded: %d zones, hub_online=%s, rssi=%s", len(zones), hub_online, rssi_dbm)
-        return result
+        _LOGGER.info("HTV213FRF ASCII Zone %d: state=0x%02X, duration=%d", sequential_zone, state, duration)
+        sequential_zone += 1
 
-    except Exception:
-        _LOGGER.exception("HTV213FRF ASCII decoder error for a %d-character payload", _payload_length(raw))
-        raise
+    zones = zone_mapping
+
+    # For ASCII format, assume hub is online if we got valid data
+    hub_online = True
+    _LOGGER.info("HTV213FRF ASCII hub state: online (valid ASCII data received)")
+
+    result = {
+        "type": "valve_hub",
+        "rssi_dbm": rssi_dbm,
+        "raw_bytes": raw.encode("ascii"),
+        "zones": zones,
+        "tlv_raw": {},
+        "hub_online": hub_online,
+        "hub_state_raw": "ascii_format",
+        "battery_flag": battery_flag,
+        "battery_percent": battery_flag_to_percent(battery_flag),
+        "decoder": "htv213frf_ascii",
+        "debug_info": {
+            "payload_format": "ascii",
+            "raw_payload": raw,
+            "header_parts": header_parts,
+            "zone_sections": zone_sections,
+            "zones_found": len(zones),
+            "rssi_raw": rssi_raw,
+        },
+    }
+
+    _LOGGER.info("HTV213FRF ASCII decoded: %d zones, hub_online=%s, rssi=%s", len(zones), hub_online, rssi_dbm)
+    return result
 
 
 def _extract_dp_battery(b: bytes) -> tuple[int | None, int | None]:
@@ -332,41 +333,36 @@ def _decode_htv213frf_hex(raw: str) -> dict:
     missing decoder for either as an unfinished job.
     """
 
-    try:
-        b = _parse_rainpoint_payload(raw)
-        _LOGGER.debug("HTV213FRF hex payload: %d bytes", len(b))
+    b = _parse_rainpoint_payload(raw)
+    _LOGGER.debug("HTV213FRF hex payload: %d bytes", len(b))
 
-        records = _map_dp_records(b)
-        zones = _extract_dp_zones(records, with_usage=True)
+    records = _map_dp_records(b)
+    zones = _extract_dp_zones(records, with_usage=True)
 
-        battery_flag, battery_percent = _extract_dp_battery(b)
+    battery_flag, battery_percent = _extract_dp_battery(b)
 
-        _LOGGER.debug(
-            "HTV213FRF hex decoded: zones=%s, hub_online=%s, battery=%s (flag %s)",
-            _RecordSummary(zones),
-            bool(zones),
-            battery_percent,
-            battery_flag,
-        )
-        result = {
-            "type": "valve_hub",
-            "rssi_dbm": _rssi_dbm_from_record(records.get((_DP_RSSI, STA_RSSI_FIELD))),
-            "raw_bytes": b,
-            "zones": zones,
-            "tlv_raw": {},
-            "hub_online": bool(zones),
-            "hub_state_raw": None,
-            "battery_flag": battery_flag,
-            "decoder": "htv213frf_hex",
-        }
-        if battery_percent is not None:
-            result["battery_percent"] = battery_percent
-        _attach_report_time(result, b, dp_id_prefixed=True)
-        return result
-
-    except Exception:
-        _LOGGER.exception("HTV213FRF hex decoder error for a %d-character payload", _payload_length(raw))
-        raise
+    _LOGGER.debug(
+        "HTV213FRF hex decoded: zones=%s, hub_online=%s, battery=%s (flag %s)",
+        _RecordSummary(zones),
+        bool(zones),
+        battery_percent,
+        battery_flag,
+    )
+    result = {
+        "type": "valve_hub",
+        "rssi_dbm": _rssi_dbm_from_record(records.get((_DP_RSSI, STA_RSSI_FIELD))),
+        "raw_bytes": b,
+        "zones": zones,
+        "tlv_raw": {},
+        "hub_online": bool(zones),
+        "hub_state_raw": None,
+        "battery_flag": battery_flag,
+        "decoder": "htv213frf_hex",
+    }
+    if battery_percent is not None:
+        result["battery_percent"] = battery_percent
+    _attach_report_time(result, b, dp_id_prefixed=True)
+    return result
 
 
 # dp_id of the RSSI record on dp_id-prefixed valve frames (HTV213 family and
@@ -465,6 +461,7 @@ def _extract_dp_zones(records: dict[tuple[int, int], bytes], *, with_usage: bool
     return zones
 
 
+@_decoder
 def decode_htv210b(raw: str) -> dict:
     """Decode an HTV210B valve status frame (11# prefix, hub-paired).
 
@@ -479,48 +476,32 @@ def decode_htv210b(raw: str) -> dict:
     falls back on: this model's dp 0x18 record is its battery flag, not an
     online state, so there is no dedicated record to read.
     """
-    try:
-        if not _is_dp_id_framed(raw):
-            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
-        b = _parse_rainpoint_payload(raw)
-        records = _map_dp_records(b)
-        zones = _extract_dp_zones(records, with_usage=False)
-        _LOGGER.debug("HTV210B decoded: zones=%s", _RecordSummary(zones))
-        battery_flag, battery_percent = _extract_dp_battery(b)
-        result = {
-            "type": "valve_hub",
-            "rssi_dbm": _rssi_dbm_from_record(records.get((_DP_RSSI, STA_RSSI_FIELD))),
-            "raw_bytes": b,
-            "zones": zones,
-            "tlv_raw": {},
-            "hub_online": bool(zones),
-            "hub_state_raw": None,
-            "battery_flag": battery_flag,
-            "decoder": "htv210b_hex",
-        }
-        if battery_percent is not None:
-            result["battery_percent"] = battery_percent
-        _attach_report_time(result, b, dp_id_prefixed=True)
-        return result
-    except Exception as e:
-        _LOGGER.exception("HTV210B decoder error for a %d-character payload", _payload_length(raw))
-        return {
-            "type": "valve_hub",
-            # None, not 0: the RSSI sensor renders this value verbatim, and a
-            # 0 here would read as a perfect signal instead of no reading.
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "zones": {},
-            "tlv_raw": {},
-            "hub_online": False,
-            "hub_state_raw": None,
-            "battery_flag": None,
-            "decoder": "htv210b_error",
-            "error": str(e),
-        }
+    if not _is_dp_id_framed(raw):
+        raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
+    b = _parse_rainpoint_payload(raw)
+    records = _map_dp_records(b)
+    zones = _extract_dp_zones(records, with_usage=False)
+    _LOGGER.debug("HTV210B decoded: zones=%s", _RecordSummary(zones))
+    battery_flag, battery_percent = _extract_dp_battery(b)
+    result = {
+        "type": "valve_hub",
+        "rssi_dbm": _rssi_dbm_from_record(records.get((_DP_RSSI, STA_RSSI_FIELD))),
+        "raw_bytes": b,
+        "zones": zones,
+        "tlv_raw": {},
+        "hub_online": bool(zones),
+        "hub_state_raw": None,
+        "battery_flag": battery_flag,
+        "decoder": "htv210b_hex",
+    }
+    if battery_percent is not None:
+        result["battery_percent"] = battery_percent
+    _attach_report_time(result, b, dp_id_prefixed=True)
+    return result
 
 
-def decode_htv210b_dp_state(raw: str) -> dict | None:
+@_decoder
+def decode_htv210b_dp_state(raw: str) -> dict:
     """Decode the comma-form ``state`` blob ``controlWorkModeDP`` returns.
 
     The response carries a leading mode digit, a comma, then the same
@@ -534,28 +515,23 @@ def decode_htv210b_dp_state(raw: str) -> dict | None:
     ``state_raw``, ``event_time``): no ``type``, ``rssi_dbm``,
     ``battery_flag``, ``zones`` wrapper, or port field, because the blob does
     not carry those and does not say which zone it describes -- the
-    commanded port comes from the caller. Returns None on any malformed
-    input (no comma, an odd-length or empty hex body, or a body with no
-    work-state record) so a caller's existing falsy bail-out covers it,
-    rather than raising or returning a partial dict.
+    commanded port comes from the caller. Raises RainPointDecodeError on
+    malformed input (no comma, an odd-length or empty hex body, or a body
+    with no work-state record).
     """
-    try:
-        if not raw or "," not in raw:
-            raise ValueError("DP state blob missing ',' separator")
-        _, hex_body = raw.split(",", 1)
-        hex_body = hex_body.strip()
-        if not hex_body or len(hex_body) % 2 != 0:
-            raise ValueError(f"DP state hex body is empty or odd-length: {len(hex_body)} chars")
-        b = bytes.fromhex(hex_body)
-        records = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), dp_id_prefixed=False)}
+    if not raw or "," not in raw:
+        raise ValueError("DP state blob missing ',' separator")
+    _, hex_body = raw.split(",", 1)
+    hex_body = hex_body.strip()
+    if not hex_body or len(hex_body) % 2 != 0:
+        raise ValueError(f"DP state hex body is empty or odd-length: {len(hex_body)} chars")
+    b = bytes.fromhex(hex_body)
+    records = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), dp_id_prefixed=False)}
 
-        zone = _single_zone_from_records(records)
-        if zone is None:
-            raise ValueError("DP state blob has no work-state record")
-        return zone
-    except Exception:
-        _LOGGER.exception("HTV210B DP state decoder error for a %d-character blob", len(raw) if raw else 0)
-        return None
+    zone = _single_zone_from_records(records)
+    if zone is None:
+        raise ValueError("DP state blob has no work-state record")
+    return zone
 
 
 # Structural field indices for the HIC801W 8-station irrigation controller,
@@ -603,37 +579,13 @@ def _hic801w_stations_from_mask(mask: int) -> list[int]:
 def _hic801w_observed_width(value: bytes | None) -> str:
     """Describe a field's observed width without echoing the field's bytes.
 
-    The width-check messages reach the log through the traceback that
-    _LOGGER.exception prints, so interpolating the bytes themselves would put
-    payload content on that line by the back door, the same way the missing
-    prefix check would if it echoed its input.
+    The width-check messages become the RainPointDecodeError text callers
+    log, so echoing the bytes would put payload content on that line.
     """
     return "missing" if value is None else f"{len(value)} bytes"
 
 
-def _hic801w_error_envelope(message: str) -> dict:
-    """Return the HIC801W error envelope carrying `message` as its error.
-
-    Shared by the two rejection routes so they cannot drift: the b3 check,
-    which returns directly because it has already logged its own sanitized
-    WARNING, and the outer handler, which catches everything else. Both carry
-    the same keys as the happy path with every decoded field None, so a frame
-    that did not parse yields no state rather than a stale or invented one.
-    """
-    return {
-        "type": "irrigation_controller",
-        "rssi_dbm": None,
-        "raw_bytes": [],
-        "current_station": None,
-        "program_stations": None,
-        "program_stations_completed": None,
-        "run_duration_seconds": None,
-        "run_ends_at": None,
-        "decoder": "hic801w_error",
-        "error": message,
-    }
-
-
+@_decoder
 def decode_hic801w(raw: str) -> dict:
     """Decode an HIC801W 8-station irrigation controller status frame (10# prefix).
 
@@ -652,94 +604,68 @@ def decode_hic801w(raw: str) -> dict:
     non-zero b3 is rejected outright: it means the per-byte reading is not
     the one the evidence covers, most likely a >8-station sibling or a
     firmware using the high half, and this is the one decision that can make
-    a real device go dark, which is why the rejection is a WARNING rather
-    than a silent failure.
+    a real device go dark, which is why the rejection raises rather than
+    failing silently.
 
     STA_TS_DET (field 38) arrives 2 bytes wide against a declared 4 in every
     capture from both units, so it is never width-checked and never read: a
     width check there would reject every real frame, and its meaning is
     unpinned regardless.
 
-    Both the happy and error envelopes carry the same {"type", "rssi_dbm",
-    "raw_bytes", "current_station", "program_stations",
-    "program_stations_completed", "run_duration_seconds", "run_ends_at",
-    "decoder"} keys, built by _hic801w_error_envelope on the failure side:
-    `type` stays "irrigation_controller" on both branches, which is what
-    keeps RainPointSubDeviceEntity.available True on a failed decode, and
-    every decoded field is None (never 0 or []) on the error branch, since a
-    0 or an empty list would render as real state ("none", or an empty
-    program) rather than as "did not parse". No key is ever added for
-    STA_RAIN, STA_RH, STA_TS_DET or b3, not even as an attribute, so no
-    downstream surface can pick up a reading whose meaning is unverified.
+    No key is ever added for STA_RAIN, STA_RH, STA_TS_DET or b3, not even as
+    an attribute, so no downstream surface can pick up a reading whose
+    meaning is unverified.
     """
-    try:
-        if not raw.startswith("10#"):
-            # The length, not the payload: this message reaches the handler
-            # below, whose traceback is logged, so echoing `raw` here would
-            # put the payload on the log line by the back door.
-            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload without a 10# prefix")
-        b = _parse_rainpoint_payload(raw)
-        fields = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), False)}
+    if not raw.startswith("10#"):
+        # The length, not the payload: callers log this message.
+        raise ValueError(f"Unexpected payload format: {len(raw)}-character payload without a 10# prefix")
+    b = _parse_rainpoint_payload(raw)
+    fields = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), False)}
 
-        duration_bytes = fields.get(_HIC801W_FIELD_DURATION)
-        evtime_bytes = fields.get(_HIC801W_FIELD_EVTIME)
-        water_zones_bytes = fields.get(_HIC801W_FIELD_WATER_ZONES)
-        if duration_bytes is None or len(duration_bytes) != 4:
-            raise ValueError(f"HIC801W: STA_DURATION missing or wrong width: {_hic801w_observed_width(duration_bytes)}")
-        if evtime_bytes is None or len(evtime_bytes) != 4:
-            raise ValueError(f"HIC801W: STA_EVTIME missing or wrong width: {_hic801w_observed_width(evtime_bytes)}")
-        if water_zones_bytes is None or len(water_zones_bytes) != 4:
-            raise ValueError(f"HIC801W: STA_WATER_ZONES missing or wrong width: {_hic801w_observed_width(water_zones_bytes)}")
+    duration_bytes = fields.get(_HIC801W_FIELD_DURATION)
+    evtime_bytes = fields.get(_HIC801W_FIELD_EVTIME)
+    water_zones_bytes = fields.get(_HIC801W_FIELD_WATER_ZONES)
+    if duration_bytes is None or len(duration_bytes) != 4:
+        raise ValueError(f"HIC801W: STA_DURATION missing or wrong width: {_hic801w_observed_width(duration_bytes)}")
+    if evtime_bytes is None or len(evtime_bytes) != 4:
+        raise ValueError(f"HIC801W: STA_EVTIME missing or wrong width: {_hic801w_observed_width(evtime_bytes)}")
+    if water_zones_bytes is None or len(water_zones_bytes) != 4:
+        raise ValueError(f"HIC801W: STA_WATER_ZONES missing or wrong width: {_hic801w_observed_width(water_zones_bytes)}")
 
-        b0, b1, b2, b3 = water_zones_bytes[0], water_zones_bytes[1], water_zones_bytes[2], water_zones_bytes[3]
-        if b3 != 0x00:
-            # Returned rather than raised: this rejection is a diagnosed,
-            # expected condition with its own sanitized one-line WARNING, so
-            # falling into the outer handler would log the same event a
-            # second time at ERROR with a full traceback, on every poll of an
-            # affected device, making it read as a recurring crash.
-            _LOGGER.warning("HIC801W: STA_WATER_ZONES b3 unexpected non-zero value 0x%02X; rejecting frame", b3)
-            return _hic801w_error_envelope(f"HIC801W: STA_WATER_ZONES b3 unexpected non-zero value: 0x{b3:02X}")
+    b0, b1, b2, b3 = water_zones_bytes[0], water_zones_bytes[1], water_zones_bytes[2], water_zones_bytes[3]
+    if b3 != 0x00:
+        raise ValueError(f"HIC801W: STA_WATER_ZONES b3 unexpected non-zero value: 0x{b3:02X}")
 
-        current_station = b0
-        program_stations = _hic801w_stations_from_mask(b1)
-        program_stations_completed = _hic801w_stations_from_mask(b2)
-        run_duration_seconds = int.from_bytes(duration_bytes, "little")
+    current_station = b0
+    program_stations = _hic801w_stations_from_mask(b1)
+    program_stations_completed = _hic801w_stations_from_mask(b2)
+    run_duration_seconds = int.from_bytes(duration_bytes, "little")
 
-        evtime_word = int.from_bytes(evtime_bytes, "little")
-        if current_station == 0 or evtime_word == _HIC801W_EVTIME_IDLE_SENTINEL:
-            # Both guards are kept deliberately: the sentinel guard alone
-            # would not cover a hypothetical idle frame carrying a different
-            # word, and the b0 guard alone would not cover a frame that is
-            # somehow non-idle while still carrying the sentinel.
-            run_ends_at = None
-        else:
-            run_ends_at = decode_packed_timestamp(evtime_word)
+    evtime_word = int.from_bytes(evtime_bytes, "little")
+    if current_station == 0 or evtime_word == _HIC801W_EVTIME_IDLE_SENTINEL:
+        # Both guards are kept deliberately: the sentinel guard alone
+        # would not cover a hypothetical idle frame carrying a different
+        # word, and the b0 guard alone would not cover a frame that is
+        # somehow non-idle while still carrying the sentinel.
+        run_ends_at = None
+    else:
+        run_ends_at = decode_packed_timestamp(evtime_word)
 
-        return {
-            "type": "irrigation_controller",
-            # None, not a number: the payload carries no RSSI and no battery,
-            # and variant 279 declares neither STA_BAT nor STA_RSSI,
-            # consistent with a mains-powered device with no backup battery.
-            # The signal values this owner sees come from the 278 hub record.
-            "rssi_dbm": None,
-            "raw_bytes": b,
-            "current_station": current_station,
-            "program_stations": program_stations,
-            "program_stations_completed": program_stations_completed,
-            "run_duration_seconds": run_duration_seconds,
-            "run_ends_at": run_ends_at,
-            "decoder": "hic801w_hex",
-        }
-    except Exception as e:
-        # Length only, matching decode_htv210b_dp_state: the payload itself
-        # is already retrievable through the disabled-by-default _raw_payload
-        # diagnostic and the diagnostics download, so putting an unbounded
-        # cloud-supplied string on this line adds no diagnostic reach. This
-        # handler fires precisely when the payload was not the shape we
-        # expected, which is when it is least worth trusting.
-        _LOGGER.exception("HIC801W decoder error for a %d-character blob", len(raw) if raw else 0)
-        return _hic801w_error_envelope(str(e))
+    return {
+        "type": "irrigation_controller",
+        # None, not a number: the payload carries no RSSI and no battery,
+        # and variant 279 declares neither STA_BAT nor STA_RSSI,
+        # consistent with a mains-powered device with no backup battery.
+        # The signal values this owner sees come from the 278 hub record.
+        "rssi_dbm": None,
+        "raw_bytes": b,
+        "current_station": current_station,
+        "program_stations": program_stations,
+        "program_stations_completed": program_stations_completed,
+        "run_duration_seconds": run_duration_seconds,
+        "run_ends_at": run_ends_at,
+        "decoder": "hic801w_hex",
+    }
 
 
 def _attach_single_outlet_usage(zone: dict, usage_bytes: bytes | None) -> None:
@@ -755,6 +681,7 @@ def _attach_single_outlet_usage(zone: dict, usage_bytes: bytes | None) -> None:
     zone["last_usage_gallons"] = round(counts * SINGLE_OUTLET_GALLONS_PER_COUNT, 3)
 
 
+@_decoder
 def decode_htv145frf(raw: str) -> dict:
     """Decode a single-outlet water timer status frame (10# prefix).
 
@@ -772,61 +699,45 @@ def decode_htv145frf(raw: str) -> dict:
     Output shape matches the other valve decoders (type "valve_hub" with a
     zones dict) so valve.py and number.py consume it unchanged.
     """
-    try:
-        # 11# is the dp_id-prefixed framing. Walking it without the prefix
-        # reads every dp_id as a header byte and fabricates records.
-        if not raw.startswith("10#"):
-            raise ValueError("single-outlet timer payload must use the 10# format")
-        b = _parse_rainpoint_payload(raw)
-        records = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), dp_id_prefixed=False)}
+    # 11# is the dp_id-prefixed framing. Walking it without the prefix
+    # reads every dp_id as a header byte and fabricates records.
+    if not raw.startswith("10#"):
+        raise ValueError("single-outlet timer payload must use the 10# format")
+    b = _parse_rainpoint_payload(raw)
+    records = {e["field"]: bytes(e["value_bytes"]) for e in parse_entries(list(b), dp_id_prefixed=False)}
 
-        zone = _single_zone_from_records(records)
-        if zone is not None:
-            _attach_single_outlet_usage(zone, records.get(STA_LASTUSAGE_FIELD))
-        zones = {1: zone} if zone is not None else {}
-        bat_bytes = records.get(STA_BAT_FIELD)
-        battery_flag = bat_bytes[0] if bat_bytes else None
+    zone = _single_zone_from_records(records)
+    if zone is not None:
+        _attach_single_outlet_usage(zone, records.get(STA_LASTUSAGE_FIELD))
+    zones = {1: zone} if zone is not None else {}
+    bat_bytes = records.get(STA_BAT_FIELD)
+    battery_flag = bat_bytes[0] if bat_bytes else None
 
-        result = {
-            "type": "valve_hub",
-            "rssi_dbm": _rssi_dbm_from_record(records.get(STA_RSSI_FIELD)),
-            "raw_bytes": b,
-            "zones": zones,
-            "tlv_raw": {},
-            "hub_online": bool(zones),
-            "battery_flag": battery_flag,
-            "decoder": "htv145frf_hex",
-        }
-        battery_percent = battery_flag_to_percent(battery_flag)
-        if battery_percent is not None:
-            result["battery_percent"] = battery_percent
-        _attach_report_time(result, b)
-        if zone is not None:
-            _LOGGER.info(
-                "Single-outlet timer zone 1: open=%s duration=%ds state_raw=0x%02X",
-                zone["open"],
-                zone["duration_seconds"],
-                zone["state_raw"],
-            )
-        return result
-
-    except Exception as e:
-        _LOGGER.exception("Single-outlet timer decoder error for a %d-character payload", _payload_length(raw))
-        return {
-            "type": "valve_hub",
-            # None, not 0: the RSSI sensor renders this value verbatim, and a
-            # 0 here would read as a perfect signal instead of no reading.
-            "rssi_dbm": None,
-            "raw_bytes": [],
-            "zones": {},
-            "tlv_raw": {},
-            "hub_online": False,
-            "battery_flag": None,
-            "decoder": "htv145frf_error",
-            "error": str(e),
-        }
+    result = {
+        "type": "valve_hub",
+        "rssi_dbm": _rssi_dbm_from_record(records.get(STA_RSSI_FIELD)),
+        "raw_bytes": b,
+        "zones": zones,
+        "tlv_raw": {},
+        "hub_online": bool(zones),
+        "battery_flag": battery_flag,
+        "decoder": "htv145frf_hex",
+    }
+    battery_percent = battery_flag_to_percent(battery_flag)
+    if battery_percent is not None:
+        result["battery_percent"] = battery_percent
+    _attach_report_time(result, b)
+    if zone is not None:
+        _LOGGER.info(
+            "Single-outlet timer zone 1: open=%s duration=%ds state_raw=0x%02X",
+            zone["open"],
+            zone["duration_seconds"],
+            zone["state_raw"],
+        )
+    return result
 
 
+@_decoder
 def decode_moisture_full(raw: str) -> dict:
     """
     Decode HCS021FRF (moisture + temp + lux).
@@ -835,18 +746,13 @@ def decode_moisture_full(raw: str) -> dict:
     1. Hex format (10#...) - standard TLV structure
     2. ASCII format (1,-73,1;694,70,G=292478) - comma-separated values
     """
-    try:
-        # Check payload format and route to appropriate decoder
-        if raw.startswith("10#"):
-            return _decode_moisture_full_hex(raw)
-        elif "," in raw and (";" in raw or "=" in raw):
-            return _decode_moisture_full_ascii(raw)
-        else:
-            raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
-
-    except Exception as e:
-        _LOGGER.exception("HCS021FRF decoder error")
-        return {"type": "moisture_full", "rssi_dbm": None, "raw_bytes": [], "decoder": "hcs021frf_error", "error": str(e)}
+    # Check payload format and route to appropriate decoder
+    if raw.startswith("10#"):
+        return _decode_moisture_full_hex(raw)
+    elif "," in raw and (";" in raw or "=" in raw):
+        return _decode_moisture_full_ascii(raw)
+    else:
+        raise ValueError(f"Unexpected payload format: {len(raw)}-character payload")
 
 
 def _decode_moisture_full_ascii(raw: str) -> dict:
@@ -859,96 +765,91 @@ def _decode_moisture_full_ascii(raw: str) -> dict:
 
     _LOGGER.debug("Decoding HCS021FRF ASCII payload")
 
-    try:
-        # Parse the ASCII format
-        # Example: 1,-73,1;694,70,G=292478
+    # Parse the ASCII format
+    # Example: 1,-73,1;694,70,G=292478
 
-        # Split on semicolon to separate header from sensor data
-        if ";" not in raw:
-            raise ValueError("Invalid ASCII format: missing semicolon")
+    # Split on semicolon to separate header from sensor data
+    if ";" not in raw:
+        raise ValueError("Invalid ASCII format: missing semicolon")
 
-        header_part, sensor_part = raw.split(";", 1)
+    header_part, sensor_part = raw.split(";", 1)
 
-        # Parse header: 1,-73,1
-        header_parts = header_part.split(",")
-        if len(header_parts) < 3:
-            raise ValueError("Invalid ASCII header format")
+    # Parse header: 1,-73,1
+    header_parts = header_part.split(",")
+    if len(header_parts) < 3:
+        raise ValueError("Invalid ASCII header format")
 
-        _flags1 = _ascii_int(header_parts[0])
-        rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
-        battery_flag = _ascii_int(header_parts[2])
+    _flags1 = _ascii_int(header_parts[0])
+    rssi_raw = _ascii_int(header_parts[1])  # RSSI in dBm (negative number)
+    battery_flag = _ascii_int(header_parts[2])
 
-        # Extract RSSI; positive values indicate a malformed payload.
-        if rssi_raw >= 0:
-            _LOGGER.warning("ASCII RSSI value %d is non-negative; expected negative dBm", rssi_raw)
-        rssi_dbm = rssi_raw if rssi_raw < 0 else None
+    # Extract RSSI; positive values indicate a malformed payload.
+    if rssi_raw >= 0:
+        _LOGGER.warning("ASCII RSSI value %d is non-negative; expected negative dBm", rssi_raw)
+    rssi_dbm = rssi_raw if rssi_raw < 0 else None
 
-        # Parse sensor data: 694,70,G=292478
-        sensor_parts = sensor_part.split(",")
+    # Parse sensor data: 694,70,G=292478
+    sensor_parts = sensor_part.split(",")
 
-        if len(sensor_parts) < 3:
-            raise ValueError("Invalid ASCII sensor data format")
+    if len(sensor_parts) < 3:
+        raise ValueError("Invalid ASCII sensor data format")
 
-        # Parse sensor values
-        temp_raw = _ascii_int(sensor_parts[0])  # Temperature raw value (Fahrenheit * 10)
-        moisture = _ascii_int(sensor_parts[1])  # Moisture percentage
-        lux_data = sensor_parts[2]  # Lux data (may contain =)
+    # Parse sensor values
+    temp_raw = _ascii_int(sensor_parts[0])  # Temperature raw value (Fahrenheit * 10)
+    moisture = _ascii_int(sensor_parts[1])  # Moisture percentage
+    lux_data = sensor_parts[2]  # Lux data (may contain =)
 
-        # Parse temperature - ASCII format provides Fahrenheit * 10
-        # Example: 685 = 68.5°F
-        temp_f = temp_raw / 10.0 if temp_raw else 0
-        # Convert Fahrenheit to Celsius: (F - 32) * 5/9
-        temp_c = (temp_f - 32) * 5 / 9
+    # Parse temperature - ASCII format provides Fahrenheit * 10
+    # Example: 685 = 68.5°F
+    temp_f = temp_raw / 10.0 if temp_raw else 0
+    # Convert Fahrenheit to Celsius: (F - 32) * 5/9
+    temp_c = (temp_f - 32) * 5 / 9
 
-        # Parse lux data if it contains = (e.g., "G=292478")
-        if "=" in lux_data:
-            lux_parts = lux_data.split("=")
-            if len(lux_parts) == 2:
-                lux_raw = _ascii_int(lux_parts[1])
-                lux = lux_raw / 10.0  # Assuming similar scaling as hex format
-            else:
-                lux = 0
+    # Parse lux data if it contains = (e.g., "G=292478")
+    if "=" in lux_data:
+        lux_parts = lux_data.split("=")
+        if len(lux_parts) == 2:
+            lux_raw = _ascii_int(lux_parts[1])
+            lux = lux_raw / 10.0  # Assuming similar scaling as hex format
         else:
-            # Try to parse as direct lux value
-            try:
-                lux = _ascii_int(lux_data) / 10.0
-            except ValueError:
-                lux = 0
+            lux = 0
+    else:
+        # Try to parse as direct lux value
+        try:
+            lux = _ascii_int(lux_data) / 10.0
+        except ValueError:
+            lux = 0
 
-        result = {
-            "type": "moisture_full",
-            "rssi_dbm": rssi_dbm,
-            "raw_bytes": raw.encode("ascii"),
-            "moisture_percent": moisture,
-            "temperature_c": temp_c,
-            "temperature_f10": temp_raw,
-            "illuminance_lux": lux,
-            "illuminance_raw10": int(lux * 10) if lux else 0,
-            "battery_flag": battery_flag,
-            "battery_percent": battery_flag_to_percent(battery_flag),
-            "decoder": "hcs021frf_ascii",
-            "debug_info": {
-                "payload_format": "ascii",
-                "raw_payload": raw,
-                "header_parts": header_parts,
-                "sensor_parts": sensor_parts,
-                "rssi_raw": rssi_raw,
-                "lux_data_parsed": lux_data,
-            },
-        }
+    result = {
+        "type": "moisture_full",
+        "rssi_dbm": rssi_dbm,
+        "raw_bytes": raw.encode("ascii"),
+        "moisture_percent": moisture,
+        "temperature_c": temp_c,
+        "temperature_f10": temp_raw,
+        "illuminance_lux": lux,
+        "illuminance_raw10": int(lux * 10) if lux else 0,
+        "battery_flag": battery_flag,
+        "battery_percent": battery_flag_to_percent(battery_flag),
+        "decoder": "hcs021frf_ascii",
+        "debug_info": {
+            "payload_format": "ascii",
+            "raw_payload": raw,
+            "header_parts": header_parts,
+            "sensor_parts": sensor_parts,
+            "rssi_raw": rssi_raw,
+            "lux_data_parsed": lux_data,
+        },
+    }
 
-        _LOGGER.info(
-            "HCS021FRF ASCII decoded: temp=%.1f°C, moisture=%d%%, lux=%.1f, rssi=%s",
-            temp_c,
-            moisture,
-            lux,
-            rssi_dbm,
-        )
-        return result
-
-    except Exception:
-        _LOGGER.exception("HCS021FRF ASCII decoder error")
-        raise
+    _LOGGER.info(
+        "HCS021FRF ASCII decoded: temp=%.1f°C, moisture=%d%%, lux=%.1f, rssi=%s",
+        temp_c,
+        moisture,
+        lux,
+        rssi_dbm,
+    )
+    return result
 
 
 def _decode_moisture_full_hex(raw: str) -> dict:
@@ -1123,6 +1024,7 @@ def _parse_hws019_readings(readings_part: str) -> tuple[dict[str, str], dict[str
     return readings, stats
 
 
+@_decoder
 def decode_hws019wrf_v2(raw: str) -> dict:
     """
     Decode HWS019WRF-V2 (Display Hub) CSV/semicolon payload.
@@ -1159,24 +1061,20 @@ def decode_hws019wrf_v2(raw: str) -> dict:
     unknown, so it is preserved verbatim rather than named.
     """
     _LOGGER.debug("Decoding HWS019WRF-V2")
-    try:
-        parts = raw.split(";")
-        if len(parts) < 2:
-            raise ValueError("expected ';' separator between flags and readings in HWS019 payload")
-        flags = _parse_hws019_flags(parts[0])
-        readings, reading_stats = _parse_hws019_readings(parts[1])
-        result = {
-            "type": "hws019wrf_v2",
-            "flags": flags,
-            "readings": readings,
-            "reading_stats": reading_stats,
-            "raw": raw,
-        }
-        _LOGGER.debug("decode_hws019wrf_v2 result: %s", _RecordSummary(result))
-        return result
-    except (ValueError, IndexError) as ex:
-        _LOGGER.exception("Failed to decode a %d-character HWS019WRF-V2 payload", _payload_length(raw))
-        return {"type": "hws019wrf_v2", "raw": raw, "error": str(ex)}
+    parts = raw.split(";")
+    if len(parts) < 2:
+        raise ValueError("expected ';' separator between flags and readings in HWS019 payload")
+    flags = _parse_hws019_flags(parts[0])
+    readings, reading_stats = _parse_hws019_readings(parts[1])
+    result = {
+        "type": "hws019wrf_v2",
+        "flags": flags,
+        "readings": readings,
+        "reading_stats": reading_stats,
+        "raw": raw,
+    }
+    _LOGGER.debug("decode_hws019wrf_v2 result: %s", _RecordSummary(result))
+    return result
 
 
 # DP IDs for valve hub zone state and duration (confirmed via payload capture).
@@ -1219,19 +1117,7 @@ def _extract_valve_hub_zones(tlv: dict) -> dict:
     return zones
 
 
-def _valve_hub_error_result(error: str) -> dict:
-    """Shape the error fallback dict returned when decoding fails."""
-    return {
-        "type": "valve_hub",
-        "rssi_dbm": None,
-        "raw_bytes": [],
-        "zones": {},
-        "tlv_raw": {},
-        "decoder": "valve_hub_error",
-        "error": error,
-    }
-
-
+@_decoder
 def decode_valve_hub(raw: str) -> dict:
     """
     Decode an irrigation valve hub TLV payload (e.g. HTV0540FRF).
@@ -1246,39 +1132,35 @@ def decode_valve_hub(raw: str) -> dict:
     batteries had gone low.
     """
 
-    try:
-        b = _parse_rainpoint_payload(raw)
-        _LOGGER.debug("Valve hub payload: %d bytes", len(b))
+    b = _parse_rainpoint_payload(raw)
+    _LOGGER.debug("Valve hub payload: %d bytes", len(b))
 
-        tlv = _parse_tlv_payload(raw)
-        _LOGGER.debug("Valve hub TLV entries: %s", _RecordSummary(tlv))
+    tlv = _parse_tlv_payload(raw)
+    _LOGGER.debug("Valve hub TLV entries: %s", _RecordSummary(tlv))
 
-        zones = _extract_valve_hub_zones(tlv)
-        battery_flag = _extract_battery_flag(b, dp_id_prefixed=True)
+    zones = _extract_valve_hub_zones(tlv)
+    battery_flag = _extract_battery_flag(b, dp_id_prefixed=True)
 
-        result = {
-            "type": "valve_hub",
-            "rssi_dbm": _rssi_dbm_from_record(_find_field_value(b, STA_RSSI_FIELD, dp_id_prefixed=True)),
-            "raw_bytes": b,
-            "zones": zones,
-            "tlv_raw": tlv,
-            "hub_online": bool(zones),
-            "hub_state_raw": None,
-            "battery_flag": battery_flag,
-            "decoder": "valve_hub_tlv",
-        }
-        battery_percent = battery_flag_to_percent(battery_flag)
-        if battery_percent is not None:
-            result["battery_percent"] = battery_percent
+    result = {
+        "type": "valve_hub",
+        "rssi_dbm": _rssi_dbm_from_record(_find_field_value(b, STA_RSSI_FIELD, dp_id_prefixed=True)),
+        "raw_bytes": b,
+        "zones": zones,
+        "tlv_raw": tlv,
+        "hub_online": bool(zones),
+        "hub_state_raw": None,
+        "battery_flag": battery_flag,
+        "decoder": "valve_hub_tlv",
+    }
+    battery_percent = battery_flag_to_percent(battery_flag)
+    if battery_percent is not None:
+        result["battery_percent"] = battery_percent
 
-        _LOGGER.info("Valve hub decoded: %d zones, hub_online=%s", len(zones), bool(zones))
-        return result
-
-    except Exception as e:
-        _LOGGER.exception("Valve hub decoder error")
-        return _valve_hub_error_result(str(e))
+    _LOGGER.info("Valve hub decoded: %d zones, hub_online=%s", len(zones), bool(zones))
+    return result
 
 
+@_decoder
 def decode_rain(raw: str) -> dict:
     """
     Decode HCS012ARF (rain gauge).
@@ -1408,6 +1290,7 @@ def _extract_hcs044_rain(b: bytes) -> bool | None:
     return value[0] == _HCS044_RAIN_WET
 
 
+@_decoder
 def decode_hcs044frf(raw: str) -> dict:
     """Decode HCS044FRF (rain detector).
 
@@ -1438,6 +1321,7 @@ def decode_hcs044frf(raw: str) -> dict:
     return result
 
 
+@_decoder
 def decode_moisture_simple(raw: str) -> dict:
     """
     Decode HCS026FRF (moisture-only) payload.
@@ -1496,6 +1380,7 @@ def _scaled_field(b: bytes, field: int, factor: float, digits: int) -> float | N
     return None if counts is None else round(counts * factor, digits)
 
 
+@_decoder
 def decode_flow_meter(raw: str) -> dict:
     """Decode HCS008FRF (flow meter).
 
@@ -1651,6 +1536,7 @@ _POOL_PLUS_READINGS = (
 )
 
 
+@_decoder
 def decode_pool_plus(raw: str) -> dict:
     """Decode the HCS015ARF+ pool and ambient temperature/humidity payload.
 
@@ -1663,35 +1549,32 @@ def decode_pool_plus(raw: str) -> dict:
 
     result: dict[str, Any] = {"type": "pool_plus", "decoder": "pool_plus", **dict.fromkeys(_POOL_PLUS_READINGS)}
 
-    try:
-        if not _is_dp_id_framed(raw):
-            return result
-        b = _parse_rainpoint_payload(raw)
-        records = _map_dp_records(b)
+    if not _is_dp_id_framed(raw):
+        raise ValueError(f"HCS015ARF+ payload is not dp_id-framed: {len(raw)}-character payload")
+    b = _parse_rainpoint_payload(raw)
+    records = _map_dp_records(b)
 
-        def record(dp_id: int, field: int, width: int) -> bytes | None:
-            value = records.get((dp_id, field))
-            return value if value is not None and len(value) == width else None
+    def record(dp_id: int, field: int, width: int) -> bytes | None:
+        value = records.get((dp_id, field))
+        return value if value is not None and len(value) == width else None
 
-        for prefix, current_dp, range_dp in _POOL_PLUS_TEMP_DPS:
-            if (current := record(current_dp, STA_TEM_FIELD, 2)) is not None:
-                result[f"{prefix}_tempcurrent"] = _tenths_c(int.from_bytes(current, "little", signed=True))
-            if (limits := record(range_dp, STA_TEM_RANGE_FIELD, 4)) is not None:
-                result[f"{prefix}_templow"] = _tenths_c(int.from_bytes(limits[:2], "little", signed=True))
-                result[f"{prefix}_temphigh"] = _tenths_c(int.from_bytes(limits[2:], "little", signed=True))
-        if (humidity := record(_POOL_PLUS_RH_DP, STA_RH_FIELD, 1)) is not None:
-            result["humidity_current"] = humidity[0]
-        if (limits := record(_POOL_PLUS_RH_RANGE_DP, STA_RH_RANGE_FIELD, 2)) is not None:
-            result["humidity_low"], result["humidity_high"] = limits[0], limits[1]
-        result["raw_bytes"] = b
-        _attach_report_time(result, b, dp_id_prefixed=True)
-
-    except Exception:
-        _LOGGER.exception("Error in HCS015ARF+ decoder")
+    for prefix, current_dp, range_dp in _POOL_PLUS_TEMP_DPS:
+        if (current := record(current_dp, STA_TEM_FIELD, 2)) is not None:
+            result[f"{prefix}_tempcurrent"] = _tenths_c(int.from_bytes(current, "little", signed=True))
+        if (limits := record(range_dp, STA_TEM_RANGE_FIELD, 4)) is not None:
+            result[f"{prefix}_templow"] = _tenths_c(int.from_bytes(limits[:2], "little", signed=True))
+            result[f"{prefix}_temphigh"] = _tenths_c(int.from_bytes(limits[2:], "little", signed=True))
+    if (humidity := record(_POOL_PLUS_RH_DP, STA_RH_FIELD, 1)) is not None:
+        result["humidity_current"] = humidity[0]
+    if (limits := record(_POOL_PLUS_RH_RANGE_DP, STA_RH_RANGE_FIELD, 2)) is not None:
+        result["humidity_low"], result["humidity_high"] = limits[0], limits[1]
+    result["raw_bytes"] = b
+    _attach_report_time(result, b, dp_id_prefixed=True)
 
     return result
 
 
+@_decoder
 def decode_co2(raw: str) -> dict:
     """Decode the HCS0530THO CO2, temperature and humidity payload.
 
@@ -1711,31 +1594,28 @@ def decode_co2(raw: str) -> dict:
         "co2humidity": None,
     }
 
-    try:
-        if is_ascii_payload(raw):
-            temp, humidity, co2 = _climate_ascii_readings(raw)
-            result["co2temp"] = _tenths_c(temp[0])
-            result["co2humidity"] = humidity[0]
-            result["co2"], result["co2high"], result["co2low"] = co2
-            _attach_ascii_status(result, raw)
-        else:
-            b = _parse_rainpoint_payload(raw)
-            if b and len(b) > 1:
-                _attach_frame_status(result, b)
-                temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
-                result["co2temp"] = _tenths_c(temp_f10)
-                result["co2humidity"] = _find_field_int(b, STA_RH_FIELD)
-                reading = _find_field_value(b, STA_CO2_FIELD)
-                if reading is not None and len(reading) == 4:
-                    result["co2"] = _le_int(reading[:2])
-                result["co2low"], result["co2high"] = _range_pair(b, STA_CO2_RANGE_FIELD, 2)
-
-    except Exception:
-        _LOGGER.exception("Error in CO2 decoder")
+    if is_ascii_payload(raw):
+        temp, humidity, co2 = _climate_ascii_readings(raw)
+        result["co2temp"] = _tenths_c(temp[0])
+        result["co2humidity"] = humidity[0]
+        result["co2"], result["co2high"], result["co2low"] = co2
+        _attach_ascii_status(result, raw)
+    else:
+        b = _parse_rainpoint_payload(raw)
+        if b and len(b) > 1:
+            _attach_frame_status(result, b)
+            temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
+            result["co2temp"] = _tenths_c(temp_f10)
+            result["co2humidity"] = _find_field_int(b, STA_RH_FIELD)
+            reading = _find_field_value(b, STA_CO2_FIELD)
+            if reading is not None and len(reading) == 4:
+                result["co2"] = _le_int(reading[:2])
+            result["co2low"], result["co2high"] = _range_pair(b, STA_CO2_RANGE_FIELD, 2)
 
     return result
 
 
+@_decoder
 def decode_unknown(raw: str) -> dict:
     """Decode unknown device."""
 
@@ -1747,19 +1627,16 @@ def decode_unknown(raw: str) -> dict:
         "decoder": "basic",
     }
 
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
-            result["raw_bytes"] = b
-
-    except Exception:
-        _LOGGER.exception("Error in unknown decoder")
+    b = _parse_rainpoint_payload(raw)
+    if b and len(b) > 1:
+        result["rssi"] = valid_rssi_dbm(_extract_rssi(b))
+        result["raw_bytes"] = b
 
     return result
 
 
 # Additional HCS decoders - basic implementations
+@_decoder
 def decode_temphum(raw: str) -> dict:
     """Decode the HCS014ARF temperature and humidity payload."""
 
@@ -1776,29 +1653,26 @@ def decode_temphum(raw: str) -> dict:
         "humiditylow": None,
     }
 
-    try:
-        if is_ascii_payload(raw):
-            temp, humidity, _ = _climate_ascii_readings(raw)
-            result["tempcurrent"], result["temphigh"], result["templow"] = map(_tenths_c, temp)
-            result["humiditycurrent"], result["humidityhigh"], result["humiditylow"] = humidity
-            _attach_ascii_status(result, raw)
-        else:
-            b = _parse_rainpoint_payload(raw)
-            if b and len(b) > 1:
-                _attach_frame_status(result, b)
-                temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
-                result["tempcurrent"] = _tenths_c(temp_f10)
-                low, high = _range_pair(b, STA_TEM_RANGE_FIELD, 2, signed=True)
-                result["templow"], result["temphigh"] = _tenths_c(low), _tenths_c(high)
-                result["humiditycurrent"] = _find_field_int(b, STA_RH_FIELD)
-                result["humiditylow"], result["humidityhigh"] = _range_pair(b, STA_RH_RANGE_FIELD, 1)
-
-    except Exception:
-        _LOGGER.exception("Error in HCS014ARF decoder")
+    if is_ascii_payload(raw):
+        temp, humidity, _ = _climate_ascii_readings(raw)
+        result["tempcurrent"], result["temphigh"], result["templow"] = map(_tenths_c, temp)
+        result["humiditycurrent"], result["humidityhigh"], result["humiditylow"] = humidity
+        _attach_ascii_status(result, raw)
+    else:
+        b = _parse_rainpoint_payload(raw)
+        if b and len(b) > 1:
+            _attach_frame_status(result, b)
+            temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
+            result["tempcurrent"] = _tenths_c(temp_f10)
+            low, high = _range_pair(b, STA_TEM_RANGE_FIELD, 2, signed=True)
+            result["templow"], result["temphigh"] = _tenths_c(low), _tenths_c(high)
+            result["humiditycurrent"] = _find_field_int(b, STA_RH_FIELD)
+            result["humiditylow"], result["humidityhigh"] = _range_pair(b, STA_RH_RANGE_FIELD, 1)
 
     return result
 
 
+@_decoder
 def decode_pool(raw: str) -> dict:
     """Decode the HCS0528ARF / HCS015ARF pool temperature payload.
 
@@ -1824,45 +1698,46 @@ def decode_pool(raw: str) -> dict:
         "battery_percent": None,
     }
 
-    try:
-        b = _parse_rainpoint_payload(raw)
-        if b and len(b) > 1:
-            result["raw_bytes"] = b
-            temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
-            if temp_f10 is not None:
-                result["tempcurrent"] = f10_to_c(temp_f10)
-            battery_flag = _extract_battery_flag(b)
-            result["battery_flag"] = battery_flag
-            result["battery_percent"] = battery_flag_to_percent(battery_flag)
-            _attach_report_time(result, b)
-
-    except Exception:
-        _LOGGER.exception("Error in pool sensor decoder")
+    b = _parse_rainpoint_payload(raw)
+    if b and len(b) > 1:
+        result["raw_bytes"] = b
+        temp_f10 = _find_field_int(b, STA_TEM_FIELD, signed=True)
+        if temp_f10 is not None:
+            result["tempcurrent"] = f10_to_c(temp_f10)
+        battery_flag = _extract_battery_flag(b)
+        result["battery_flag"] = battery_flag
+        result["battery_percent"] = battery_flag_to_percent(battery_flag)
+        _attach_report_time(result, b)
 
     return result
 
 
 # HCS variant decoders - basic implementations
+@_decoder
 def decode_hcs005frf(raw: str) -> dict:
     """Decode HCS005FRF (moisture-only sensor)."""
     return decode_moisture_simple(raw)  # pragma: no cover - stub passthrough - decode_moisture_simple covered separately
 
 
+@_decoder
 def decode_hcs024frf_v1(raw: str) -> dict:
     """Decode HCS024FRF-V1 (multi-sensor)."""
     return decode_moisture_full(raw)  # pragma: no cover - stub passthrough - decode_moisture_full covered separately
 
 
+@_decoder
 def decode_hcs014arf(raw: str) -> dict:
     """Decode HCS014ARF (Temperature/Humidity)."""
     return decode_temphum(raw)  # pragma: no cover - stub passthrough - decode_temphum covered separately
 
 
+@_decoder
 def decode_hcs015arf(raw: str) -> dict:
     """Decode HCS015ARF (pool temperature sensor)."""
     return decode_pool(raw)  # pragma: no cover - stub passthrough - decode_pool covered separately
 
 
+@_decoder
 def decode_hcs0528arf(raw: str) -> dict:
     """Decode HCS0528ARF (pool temperature sensor).
 

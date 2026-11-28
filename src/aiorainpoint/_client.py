@@ -90,6 +90,10 @@ class RainPointApiError(RainPointError):
     """A call failed at the API level, such as a non-200 status or a non-zero response code."""
 
 
+class RainPointDecodeError(RainPointError, ValueError):
+    """A decoder could not read a payload; a ValueError, so existing handlers keep catching it."""
+
+
 class RainPointThrottledError(RainPointApiError):
     """Login is refused because the server is throttling us, not because the
     credentials are wrong.
